@@ -259,7 +259,7 @@ const PARTS = [
     ] },
     { name: 'Tył', ex: [
       { id: 'B5', pl: 'Face pull na wyciągu', en: 'Face Pull', sets: 3, lo: 12, hi: 15, rest: 70, load: 'cable', inc: 2.5, days: ['pon', 'pt'], wk: 5,
-        cue: 'Lina na wysokości czoła, ciągnij do twarzy, na końcu rotacja na zewnątrz. W piątek 2 serie.' },
+        cue: 'Lina na wysokości czoła, ciągnij do twarzy, na końcu rotacja na zewnątrz.' },
       { id: 'B6', pl: 'Odwrotne rozpiętki na maszynie', en: 'Rear Delt Reverse Fly (Machine)', sets: 3, lo: 12, hi: 15, rest: 70, load: 'machine', inc: 2.5, days: ['czw'],
         cue: 'Ramiona lekko zgięte, ruch z tyłu barków, nie ze ściągania łopatek.' },
     ] },
@@ -267,7 +267,7 @@ const PARTS = [
   { id: 'klatka', name: 'Klatka i ramiona', subs: [
     { name: 'Klatka', ex: [
       { id: 'K1', pl: 'Wyciskanie hantli na ławce skośnej 30°', en: 'Incline Bench Press (Dumbbell)', sets: 3, lo: 8, hi: 10, rest: 120, load: 'db', inc: 2, days: ['pon', 'czw'],
-        cue: 'Łopatki ściągnięte i opuszczone przez całą serię — pchanie z zaokrąglonymi barkami utrwala wadę postawy. W poniedziałek (post) RIR 2–3.' },
+        cue: 'Łopatki ściągnięte i opuszczone przez całą serię — pchanie z zaokrąglonymi barkami utrwala wadę postawy.' },
     ] },
     { name: 'Biceps', ex: [
       { id: 'K2', pl: 'Uginanie ramion z hantlami na ławce skośnej', en: 'Seated Incline Curl (Dumbbell)', sets: 2, lo: 10, hi: 12, rest: 60, load: 'db', inc: 1, days: ['czw'],
@@ -461,8 +461,7 @@ function cardHTML(ex) {
   let h = `<article class="ex" id="ex-${ex.id}" data-id="${ex.id}">` +
     `<div class="ex-title"><h3>${esc(ex.pl)}</h3><p class="en">${esc(ex.en)}</p></div>` +
     `<div class="meta"><span class="target">${esc(target)}</span>` +
-    `<button type="button" class="rest" data-rest="${ex.rest}" aria-label="Start przerwy ${esc(restTxt(ex.rest))}">⏱ ${esc(restTxt(ex.rest))}</button>` +
-    `<span class="chip">w planie: ${esc(ex.days.join(', '))}</span></div>`;
+    `<button type="button" class="rest" data-rest="${ex.rest}" aria-label="Start przerwy ${esc(restTxt(ex.rest))}">⏱ ${esc(restTxt(ex.rest))}</button></div>`;
   if (hasLoad(ex)) {
     h += `<div class="load"><button type="button" class="step" data-step="-1" aria-label="Zmniejsz o ${fmt(ex.inc)} kg">−</button>` +
       `<label class="kg"><input id="kg-${ex.id}" data-kg="${ex.id}" inputmode="decimal" autocomplete="off" placeholder="—" aria-label="Obecny ciężar w kilogramach"><span>kg</span></label>` +
