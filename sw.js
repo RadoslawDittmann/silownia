@@ -1,5 +1,5 @@
 // Offline: pliki aplikacji w pamięci podręcznej. Strona główna — najpierw sieć (żeby dotarły aktualizacje), bez sieci z pamięci.
-const CACHE = 'silownia-v3';
+const CACHE = 'silownia-v4';
 const FILES = ['./', './index.html', './manifest.webmanifest', './icon-180.png', './icon-192.png', './icon-512.png'];
 
 self.addEventListener('install', e => {
