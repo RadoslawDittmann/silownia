@@ -165,12 +165,16 @@ main { padding-block: 16px 150px; display: grid; gap: 14px; }
 details.more { border-top: 1px solid var(--line); padding-top: 8px; }
 details.more summary { cursor: pointer; color: var(--muted); font-size: 0.9rem; font-weight: 600; min-height: 32px; display: flex; align-items: center; }
 .hist { display: grid; gap: 2px; margin: 6px 0 10px; font-size: 0.92rem; font-variant-numeric: tabular-nums; }
-.hist div { display: grid; grid-template-columns: 4.2rem 5.4rem 1fr; gap: 8px; }
+.hist div { display: grid; grid-template-columns: 4.4rem 4.8rem 1fr auto; gap: 8px; align-items: center; min-height: 40px; border-top: 1px solid var(--line); }
+.hist div:first-child { border-top: 0; }
 .hist .d { color: var(--muted); }
+.hist .empty { margin: 0; color: var(--muted); }
+.del { border: 1px solid var(--line); background: none; color: var(--low); border-radius: 8px; padding: 0 10px; height: 34px; font-size: 0.85rem; font-weight: 600; }
+.del.armed { background: var(--low); color: var(--surface); border-color: var(--low); }
+.showall { justify-self: start; border: 0; background: none; color: var(--accent); font-weight: 600; font-size: 0.9rem; padding: 8px 0; }
 .cue { margin: 4px 0 8px; font-size: 0.95rem; max-width: 62ch; }
 .links { display: flex; flex-wrap: wrap; gap: 8px 16px; align-items: center; }
 .links a { color: var(--accent); font-weight: 600; font-size: 0.92rem; }
-.undo { border: 0; background: none; color: var(--low); font-weight: 600; font-size: 0.88rem; padding: 4px 0; }
 
 .settings { border: 1px solid var(--line); border-radius: var(--radius); padding: 10px 14px; background: var(--surface); }
 .settings summary { cursor: pointer; font-weight: 600; min-height: 36px; display: flex; align-items: center; }
@@ -340,7 +344,7 @@ const weekly = ex => ex.wk || ex.sets * ex.days.length;
 
 /* ---------- Stan — tylko w tym telefonie ---------- */
 const KEY = 'silownia-dziennik-v1';
-const S = { lifts: {}, settings: {}, drafts: {}, view: null, scrollTo: null, banner: '' };
+const S = { lifts: {}, settings: {}, drafts: {}, showAll: {}, view: null, scrollTo: null, banner: '' };
 try {
   const raw = localStorage.getItem(KEY);
   if (raw) { const o = JSON.parse(raw); S.lifts = o.lifts || {}; S.settings = o.settings || {}; }
@@ -476,10 +480,10 @@ function cardHTML(ex) {
   }
   h += `</div><button type="button" class="save" data-save="${ex.id}">Zapisz</button></div><div class="msg" data-f="msg"></div>`;
   h += `<div class="last" data-f="last"></div>`;
-  h += `<details class="more"><summary>Historia i technika</summary><div class="hist" data-f="hist"></div>` +
+  h += `<details class="more"><summary>Historia, usuwanie wpisów i technika</summary><div class="hist" data-f="hist"></div>` +
     `<p class="cue">${esc(ex.cue)}</p><div class="links">` +
     `<a href="https://www.youtube.com/results?search_query=${encodeURIComponent(ex.en + ' technique')}" target="_blank" rel="noopener">Wideo techniki ↗</a>` +
-    `<button type="button" class="undo" data-undo="${ex.id}" data-f="undo" hidden>Usuń ostatni wpis</button></div></details></article>`;
+    `</div></details></article>`;
   return h;
 }
 function sparkSVG(vals) {
@@ -519,13 +523,15 @@ function refreshCard(id) {
     ? `<span>Ostatnio ${dShort(last.d)}: <b>${hasLoad(ex) ? fmt(last.kg) + ' kg · ' : ''}${last.reps.join(' / ')}${unit}</b></span>` +
       sparkSVG(H.slice(-12).map(e => hasLoad(ex) ? e.kg : e.reps.reduce((a, b) => a + b, 0)))
     : '<span>Brak zapisów</span>';
+  const all = !!S.showAll[id];
+  const year = String(new Date().getFullYear());
+  const dLabel = d => dShort(d) + (d.slice(0, 4) !== year ? '.' + d.slice(2, 4) : '');
   $('[data-f="hist"]', card).innerHTML = H.length
-    ? H.slice(-10).reverse().map(e => `<div><span class="d">${dShort(e.d)}</span><span>${hasLoad(ex) ? fmt(e.kg) + ' kg' : '—'}</span><span>${e.reps.join(' / ')}${unit}</span></div>`).join('')
-    : '<div><span class="d">—</span><span></span><span>Historia pojawi się po pierwszym zapisie.</span></div>';
-  const undo = $('[data-f="undo"]', card);
-  undo.hidden = !H.length;
-  undo.textContent = 'Usuń ostatni wpis';
-  delete undo.dataset.armed;
+    ? (all ? H.slice() : H.slice(-10)).reverse().map(e =>
+        `<div><span class="d">${dLabel(e.d)}</span><span>${hasLoad(ex) ? fmt(e.kg) + ' kg' : '—'}</span><span>${e.reps.join(' / ')}${unit}</span>` +
+        `<button type="button" class="del" data-del="${id}" data-d="${e.d}" aria-label="Usuń wpis z ${dLabel(e.d)}">Usuń</button></div>`).join('') +
+      (H.length > 10 ? `<button type="button" class="showall" data-all="${id}">${all ? 'Pokaż ostatnie 10' : `Pokaż całą historię (${H.length})`}</button>` : '')
+    : '<p class="empty">Historia pojawi się po pierwszym zapisie.</p>';
 }
 function refreshReady() {
   const old = $('#ready');
@@ -633,19 +639,20 @@ document.addEventListener('click', ev => {
   }
   if (t.dataset.apply) { setKg(t.dataset.apply, Number(t.dataset.v)); flash(t.dataset.apply, 'Nowy ciężar ustawiony — zacznij od dolnej granicy.', 'ok'); return; }
   if (t.dataset.save) { saveSession(t.dataset.save); return; }
-  if (t.dataset.undo) {
-    const id = t.dataset.undo;
+  if (t.dataset.del) {
+    const id = t.dataset.del, d = t.dataset.d;
     if (!t.dataset.armed) {
-      t.dataset.armed = '1'; t.textContent = 'Dotknij ponownie, żeby usunąć';
-      setTimeout(() => { if (t.dataset.armed) { delete t.dataset.armed; t.textContent = 'Usuń ostatni wpis'; } }, 4000);
+      t.dataset.armed = '1'; t.textContent = 'Na pewno?'; t.classList.add('armed');
+      setTimeout(() => { if (t.isConnected && t.dataset.armed) { delete t.dataset.armed; t.textContent = 'Usuń'; t.classList.remove('armed'); } }, 4000);
       return;
     }
     const L = lift(id);
-    L.history = (L.history || []).slice(0, -1);
+    L.history = (L.history || []).filter(e => e.d !== d);
     persist(); refreshCard(id); refreshReady();
-    flash(id, 'Usunięto ostatni wpis.', 'ok');
+    flash(id, `Usunięto wpis z ${dShort(d)}.`, 'ok');
     return;
   }
+  if (t.dataset.all) { S.showAll[t.dataset.all] = !S.showAll[t.dataset.all]; refreshCard(t.dataset.all); return; }
   if (t.dataset.act === 'export') { exportData(); return; }
   if (t.dataset.act === 'import') { $('#import-file').click(); }
 });
