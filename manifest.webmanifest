@@ -1,0 +1,16 @@
+{
+  "name": "Siłownia — dziennik ciężarów",
+  "short_name": "Siłownia",
+  "description": "Ćwiczenia według partii ciała, obecny ciężar, powtórzenia i podpowiedź progresji. Działa offline.",
+  "lang": "pl",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#EDEFEE",
+  "theme_color": "#1E4FA6",
+  "icons": [
+    { "src": "icon-192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "icon-512.png", "sizes": "512x512", "type": "image/png" },
+    { "src": "icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}
