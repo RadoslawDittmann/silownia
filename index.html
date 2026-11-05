@@ -72,86 +72,86 @@ button { cursor: pointer; -webkit-tap-highlight-color: transparent; }
   position: sticky; top: env(safe-area-inset-top, 0px); z-index: 5;
   background: var(--surface); border-bottom: 1px solid var(--line);
 }
-.top .wrap { padding-block: 10px 0; display: grid; gap: 6px; }
+.top .wrap { padding-block: 6px 0; display: grid; gap: 0; }
 .brand { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
-.brand h1 { font-size: 1.7rem; text-transform: uppercase; letter-spacing: 0.02em; }
-.today { color: var(--muted); font-size: 0.9rem; font-variant-numeric: tabular-nums; }
-.tabs-scroll { overflow-x: auto; scrollbar-width: none; margin-inline: -4px; }
+.brand h1 { font-size: 1.25rem; text-transform: uppercase; letter-spacing: 0.03em; }
+.today { color: var(--muted); font-size: 0.85rem; font-variant-numeric: tabular-nums; }
+.tabs-scroll { overflow-x: auto; scrollbar-width: none; margin-inline: -6px; }
 .tabs-scroll::-webkit-scrollbar { display: none; }
-.tabs { display: flex; gap: 2px; padding: 0 4px; min-width: max-content; }
+.tabs { display: flex; justify-content: space-between; padding: 0 10px 0 2px; min-width: max-content; }
 .tab {
-  border: 0; background: none; padding: 6px 12px 10px; border-bottom: 3px solid transparent;
-  min-height: 44px; font-family: var(--font-display); font-size: 1.15rem; font-weight: 700;
-  text-transform: uppercase; letter-spacing: 0.03em; color: var(--muted);
+  border: 0; background: none; padding: 6px 7px 8px; border-bottom: 3px solid transparent;
+  min-height: 44px; font-family: var(--font-display); font-size: 1rem; font-weight: 700;
+  text-transform: uppercase; letter-spacing: 0.02em; color: var(--muted); position: relative;
 }
+.tab .n { position: absolute; top: 1px; right: -9px; min-width: 17px; height: 17px; padding: 0 4px; font-size: 0.68rem; }
 .tab[aria-current="page"] { border-bottom-color: var(--accent); color: var(--accent); }
-.tab .n { display: inline-block; min-width: 1.3em; margin-left: 4px; padding: 0 5px; border-radius: 999px; background: var(--up); color: var(--surface); font-size: 0.8rem; line-height: 1.4; text-align: center; vertical-align: 2px; }
+/* Kółko z liczbą ćwiczeń gotowych do progresji — na zakładce i przy podgrupie */
+.n {
+  display: inline-grid; place-items: center; min-width: 20px; height: 20px; padding: 0 5px; border-radius: 999px;
+  background: var(--up); color: var(--surface); font-family: var(--font-body); font-size: 0.75rem; font-weight: 700;
+  line-height: 1; letter-spacing: 0; font-variant-numeric: tabular-nums;
+}
 
-main { padding-block: 16px 150px; display: grid; gap: 14px; }
+main { padding-block: 10px 150px; display: grid; gap: 8px; }
 .banner { background: var(--low-soft); color: var(--low); border-radius: 10px; padding: 10px 12px; font-weight: 600; }
-.ready { background: var(--up-soft); border-radius: 12px; padding: 10px 12px; display: grid; gap: 8px; }
-.ready b { color: var(--up); }
-.ready .list { display: flex; flex-wrap: wrap; gap: 6px; }
-.ready button { border: 1px solid var(--up); color: var(--up); background: none; border-radius: 999px; padding: 4px 10px; font-size: 0.88rem; font-weight: 600; min-height: 32px; }
 
-.phead { display: grid; gap: 4px; padding-block: 4px; }
-.phead h2 { font-size: 2.3rem; text-transform: uppercase; line-height: 1; }
-.phead .sub { color: var(--muted); font-size: 0.95rem; font-variant-numeric: tabular-nums; }
-.subhead { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; margin-top: 6px; }
-.subhead h3 { font-size: 1.25rem; text-transform: uppercase; letter-spacing: 0.04em; color: var(--muted); }
-.subhead span { color: var(--muted); font-size: 0.85rem; font-variant-numeric: tabular-nums; }
+.subhead { display: flex; justify-content: space-between; align-items: center; gap: 12px; margin-top: 8px; }
+.banner + .subhead { margin-top: 0; }
+.subhead h3 { font-size: 1.15rem; text-transform: uppercase; letter-spacing: 0.04em; display: flex; align-items: center; gap: 6px; }
+.subhead > span { color: var(--muted); font-size: 0.82rem; font-variant-numeric: tabular-nums; }
 
 .ex {
   background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius);
-  padding: 14px; display: grid; gap: 12px; scroll-margin-top: 130px; min-width: 0;
+  padding: 12px; display: grid; grid-template-columns: minmax(0, 1fr); gap: 8px; min-width: 0;
 }
-.ex.hl { border-color: var(--accent); }
-.ex-title h3 { font-size: 1.35rem; line-height: 1.15; }
-.en { color: var(--muted); font-size: 0.86rem; margin: 2px 0 0; }
-.meta { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
-.target { font-family: var(--font-display); font-weight: 700; font-size: 1.25rem; margin-right: 4px; font-variant-numeric: tabular-nums; }
-.chip { background: var(--chip); border-radius: 999px; padding: 3px 10px; font-size: 0.8rem; color: var(--muted); }
+.ex-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 10px; }
+.ex-title { min-width: 0; }
+.ex-title h3 { font-size: 1.2rem; line-height: 1.15; }
+.meta { margin: 3px 0 0; color: var(--muted); font-size: 0.84rem; line-height: 1.3; }
+.meta b { color: var(--ink); font-family: var(--font-display); font-size: 1.05rem; font-variant-numeric: tabular-nums; }
 .rest {
-  border: 1px solid var(--line); background: var(--surface); border-radius: 999px;
-  padding: 4px 12px; font-size: 0.85rem; font-weight: 600; min-height: 34px;
+  flex: none; border: 1px solid var(--line); background: var(--surface); border-radius: 999px;
+  padding: 3px 10px; font-size: 0.82rem; font-weight: 600; min-height: 32px; white-space: nowrap;
 }
 
-.load { display: grid; grid-template-columns: 52px 1fr 52px; gap: 8px; align-items: center; }
+.load { display: grid; grid-template-columns: 44px 1fr 44px; gap: 8px; align-items: center; }
 .step {
-  height: 52px; border-radius: 12px; border: 1px solid var(--line); background: var(--bg);
-  font-size: 1.7rem; font-weight: 600; line-height: 1;
+  height: 44px; border-radius: 10px; border: 1px solid var(--line); background: var(--bg);
+  font-size: 1.5rem; font-weight: 600; line-height: 1;
 }
 .step:active { background: var(--chip); }
 .kg { display: flex; align-items: baseline; justify-content: center; gap: 6px; }
 .kg input {
   width: 6ch; text-align: center; border: 0; border-bottom: 2px solid var(--line); background: none;
-  font-family: var(--font-display); font-weight: 700; font-size: 2.5rem; line-height: 1.1; padding: 0;
+  font-family: var(--font-display); font-weight: 700; font-size: 2.1rem; line-height: 1.1; padding: 0;
   font-variant-numeric: tabular-nums; border-radius: 0;
 }
 .kg input:focus { outline: none; border-bottom-color: var(--accent); }
-.kg span { font-family: var(--font-display); font-size: 1.2rem; color: var(--muted); }
-.load-note { grid-column: 1 / -1; text-align: center; color: var(--muted); font-size: 0.85rem; margin-top: -4px; font-variant-numeric: tabular-nums; }
-.bw { color: var(--muted); font-size: 0.92rem; }
+.kg span { font-family: var(--font-display); font-size: 1.1rem; color: var(--muted); }
+.load-note { grid-column: 1 / -1; text-align: center; color: var(--muted); font-size: 0.82rem; margin-top: -2px; font-variant-numeric: tabular-nums; }
+.bw { color: var(--muted); font-size: 0.9rem; }
 
-.status { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
-.pill { border-radius: 8px; padding: 5px 10px; font-weight: 600; font-size: 0.92rem; }
+.status { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.pill { border-radius: 8px; padding: 4px 9px; font-weight: 600; font-size: 0.88rem; }
 .pill.unset, .pill.start { background: var(--chip); color: var(--muted); }
 .pill.fresh { background: var(--accent-soft); color: var(--accent); }
 .pill.up { background: var(--up-soft); color: var(--up); }
 .pill.reps { background: var(--reps-soft); color: var(--reps); }
 .pill.low { background: var(--low-soft); color: var(--low); }
-.apply { border: 0; border-radius: 8px; padding: 6px 12px; background: var(--up); color: var(--surface); font-weight: 700; min-height: 36px; }
+.apply { border: 0; border-radius: 8px; padding: 4px 11px; background: var(--up); color: var(--surface); font-weight: 700; min-height: 32px; }
 
 .log { display: grid; grid-template-columns: 1fr auto; gap: 10px; align-items: end; }
-.sets { display: flex; gap: 8px; flex-wrap: wrap; }
-.sets label { display: grid; gap: 2px; font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted); }
+.sets { display: flex; gap: 6px; flex-wrap: wrap; }
+.sets label { display: grid; gap: 1px; font-size: 0.68rem; text-transform: uppercase; letter-spacing: 0.04em; color: var(--muted); }
 .sets input {
-  width: 3.8rem; height: 46px; text-align: center; border: 1px solid var(--line); border-radius: 10px;
-  background: var(--bg); font-size: 1.2rem; font-weight: 600; font-variant-numeric: tabular-nums;
+  width: 3.4rem; height: 44px; text-align: center; border: 1px solid var(--line); border-radius: 10px;
+  background: var(--bg); font-size: 1.15rem; font-weight: 600; font-variant-numeric: tabular-nums;
 }
 .sets input::placeholder { color: var(--muted); opacity: 0.55; font-weight: 400; }
-.save { height: 46px; border: 0; border-radius: 10px; padding: 0 18px; background: var(--accent); color: var(--accent-ink); font-weight: 700; }
-.msg { font-size: 0.88rem; color: var(--muted); min-height: 1.2em; margin-top: -6px; }
+.save { height: 44px; border: 0; border-radius: 10px; padding: 0 16px; background: var(--accent); color: var(--accent-ink); font-weight: 700; }
+.msg { font-size: 0.88rem; color: var(--muted); margin-top: -2px; }
+.msg:empty { display: none; }
 .msg.ok { color: var(--up); font-weight: 600; }
 .msg.err { color: var(--low); font-weight: 600; }
 
@@ -162,8 +162,8 @@ main { padding-block: 16px 150px; display: grid; gap: 14px; }
 .spark .ar { fill: var(--accent-soft); stroke: none; }
 .spark .pt { fill: var(--accent); stroke: none; }
 
-details.more { border-top: 1px solid var(--line); padding-top: 8px; }
-details.more summary { cursor: pointer; color: var(--muted); font-size: 0.9rem; font-weight: 600; min-height: 32px; display: flex; align-items: center; }
+details.more { border-top: 1px solid var(--line); padding-top: 4px; }
+details.more summary { cursor: pointer; color: var(--muted); font-size: 0.88rem; font-weight: 600; min-height: 32px; display: flex; align-items: center; }
 .hist { display: grid; gap: 2px; margin: 6px 0 10px; font-size: 0.92rem; font-variant-numeric: tabular-nums; }
 .hist div { display: grid; grid-template-columns: 4.4rem 4.8rem 1fr auto; gap: 8px; align-items: center; min-height: 40px; border-top: 1px solid var(--line); }
 .hist div:first-child { border-top: 0; }
@@ -200,7 +200,7 @@ details.more summary { cursor: pointer; color: var(--muted); font-size: 0.9rem; 
 .timer .bar i { display: block; height: 100%; background: var(--accent); width: 100%; transition: width 0.25s linear; }
 .timer.done { background: var(--up); color: var(--surface); }
 @media (prefers-reduced-motion: reduce) { .timer .bar i { transition: none; } }
-@media (max-width: 420px) {
+@media (max-width: 340px) {
   .log { grid-template-columns: 1fr; }
   .save { width: 100%; }
 }
@@ -230,7 +230,7 @@ details.more summary { cursor: pointer; color: var(--muted); font-size: 0.9rem; 
 
 /* ---------- Plan według partii ciała (z „Plan - trening siłowy”, 29.10.2026) ---------- */
 // load: bar (gryf 20 kg) · db (kg na hantel) · cable · machine · bw (masa ciała) · bwplus (dociążenie / wspomaganie)
-// days: kiedy ćwiczenie jest w planie; wk: serie tygodniowo, gdy różne w różne dni
+// days: kiedy ćwiczenie jest w planie; wk: serie tygodniowo, gdy różne w różne dni; tab: krótsza nazwa na zakładce
 const PARTS = [
   { id: 'plecy', name: 'Plecy', subs: [
     { name: 'Szerokość', ex: [
@@ -274,7 +274,7 @@ const PARTS = [
         cue: 'Ramiona lekko zgięte, ruch z tyłu barków, nie ze ściągania łopatek.' },
     ] },
   ] },
-  { id: 'klatka', name: 'Klatka i ramiona', subs: [
+  { id: 'klatka', name: 'Klatka i ramiona', tab: 'Klatka i ręce', subs: [
     { name: 'Klatka', ex: [
       { id: 'K1', pl: 'Wyciskanie hantli na ławce skośnej 30°', en: 'Incline Bench Press (Dumbbell)', sets: 3, lo: 8, hi: 10, rest: 120, load: 'db', inc: 2, days: ['pon', 'czw'],
         cue: 'Łopatki ściągnięte i opuszczone przez całą serię — pchanie z zaokrąglonymi barkami utrwala wadę postawy.' },
@@ -318,7 +318,7 @@ const PARTS = [
         cue: 'Pauza 1 s na dole i na górze.' },
     ] },
   ] },
-  { id: 'core', name: 'Core i postawa', subs: [
+  { id: 'core', name: 'Core i postawa', tab: 'Core', subs: [
     { name: 'Postawa i mięśnie głębokie', ex: [
       { id: 'C1', pl: 'Y-raise na ławce skośnej', en: 'Y Raise', sets: 2, lo: 10, hi: 12, rest: 60, load: 'db', inc: 1, days: ['pon'],
         cue: 'Leżąc przodem na ławce skośnej, kciuki w górę, ramiona w literę Y. Lekki ciężar, pełna kontrola.' },
@@ -352,7 +352,7 @@ const weekly = ex => ex.wk || ex.sets * ex.days.length;
 
 /* ---------- Stan — tylko w tym telefonie ---------- */
 const KEY = 'silownia-dziennik-v1';
-const S = { lifts: {}, settings: {}, drafts: {}, showAll: {}, view: null, scrollTo: null, banner: '' };
+const S = { lifts: {}, settings: {}, drafts: {}, showAll: {}, view: null, banner: '' };
 try {
   const raw = localStorage.getItem(KEY);
   if (raw) { const o = JSON.parse(raw); S.lifts = o.lifts || {}; S.settings = o.settings || {}; }
@@ -401,8 +401,13 @@ function loadNote(ex, kg) {
     case 'bar': return (kg != null ? plates(kg) + ' · ' : '') + `skok ${fmt(ex.inc)} kg`;
     case 'db': return `kg na hantel · skok ${fmt(ex.inc)} kg`;
     case 'bwplus': return '0 = masa ciała · minus = wspomaganie maszyny';
-    default: return `skok ${fmt(ex.inc)} kg`;
+    default: return '';
   }
+}
+function showNote(card, ex, kg) {
+  const el = $('[data-f="note"]', card);
+  el.textContent = loadNote(ex, kg);
+  el.hidden = !el.textContent;
 }
 function cycleInfo() {
   const cs = S.settings.cycleStart;
@@ -434,51 +439,42 @@ function renderHeader() {
   if (ci && !ci.pre) t += ` · tydz. ${ci.w}/6 · RIR ${ci.rir.split(' ·')[0]}`;
   $('#today').textContent = t;
   $('#tabs').innerHTML = PARTS.map(p => {
-    const n = EX.filter(e => e.part === p.id && statusOf(e).k === 'up').length;
-    return `<button type="button" class="tab" data-go="${p.id}" ${S.view === p.id ? 'aria-current="page"' : ''}>${esc(p.name)}${n ? `<span class="n" aria-label="${n} do podniesienia">${n}</span>` : ''}</button>`;
+    const n = upCount(EX.filter(e => e.part === p.id));
+    return `<button type="button" class="tab" data-go="${p.id}" ${S.view === p.id ? 'aria-current="page"' : ''}>${esc(p.tab || p.name)}${badge(n)}</button>`;
   }).join('');
 }
+const upCount = list => list.filter(e => statusOf(e).k === 'up').length;
+const badge = n => n ? `<span class="n" aria-label="${n} do podniesienia">${n}</span>` : '';
 function render() {
   S.view = currentView();
   try { localStorage.setItem(KEY + ':tab', S.view); } catch (e) { /* nic */ }
   renderHeader();
   const p = PARTM[S.view];
-  const list = EX.filter(e => e.part === p.id);
-  const wk = list.reduce((a, e) => a + weekly(e), 0);
   let h = `<div class="banner" id="banner" ${S.banner ? '' : 'hidden'}>${esc(S.banner)}</div>`;
-  h += readyHTML();
-  h += `<section class="phead"><h2>${esc(p.name)}</h2><div class="sub">${list.length} ćwiczeń · ${wk} serii tygodniowo</div></section>`;
-  for (const s of p.subs) {
+  p.subs.forEach((s, i) => {
     const sw = s.ex.reduce((a, e) => a + weekly(e), 0);
-    if (p.subs.length > 1 || s.name !== p.name) h += `<div class="subhead"><h3>${esc(s.name)}</h3><span>${sw} serii / tydz.</span></div>`;
+    h += `<div class="subhead"><h3>${esc(s.name)}<span data-subn="${i}">${badge(upCount(s.ex))}</span></h3><span>${sw} serii / tydz.</span></div>`;
     for (const e of s.ex) h += cardHTML(e);
-  }
+  });
   h += settingsHTML();
   $('#main').innerHTML = h;
-  list.forEach(e => refreshCard(e.id));
-  if (S.scrollTo) {
-    const el = document.getElementById('ex-' + S.scrollTo);
-    S.scrollTo = null;
-    if (el) { el.scrollIntoView({ block: 'start' }); el.classList.add('hl'); setTimeout(() => el.classList.remove('hl'), 1800); }
-  } else window.scrollTo(0, 0);
+  EX.filter(e => e.part === p.id).forEach(e => refreshCard(e.id));
+  window.scrollTo(0, 0);
 }
-function readyHTML() {
-  const ready = EX.filter(e => statusOf(e).k === 'up' && hasLoad(e));
-  if (!ready.length) return '';
-  return `<section class="ready" id="ready"><div><b>Gotowe do podniesienia ciężaru: ${ready.length}</b></div><div class="list">` +
-    ready.map(e => `<button type="button" data-jump="${e.id}">${esc(e.pl)}</button>`).join('') + `</div></section>`;
+function refreshBadges() {
+  renderHeader();
+  PARTM[S.view].subs.forEach((s, i) => { const el = $(`[data-subn="${i}"]`); if (el) el.innerHTML = badge(upCount(s.ex)); });
 }
 function cardHTML(ex) {
   const target = `${ex.sets} × ${ex.lo === ex.hi ? ex.hi : ex.lo + '–' + ex.hi}${ex.unit === 's' ? ' s' : ''}${ex.side ? ' / ' + ex.side : ''}`;
   let h = `<article class="ex" id="ex-${ex.id}" data-id="${ex.id}">` +
-    `<div class="ex-title"><h3>${esc(ex.pl)}</h3><p class="en">${esc(ex.en)}</p></div>` +
-    `<div class="meta"><span class="target">${esc(target)}</span>` +
+    `<div class="ex-head"><div class="ex-title"><h3>${esc(ex.pl)}</h3><p class="meta"><b>${esc(target)}</b> · ${esc(ex.en)}</p></div>` +
     `<button type="button" class="rest" data-rest="${ex.rest}" aria-label="Start przerwy ${esc(restTxt(ex.rest))}">⏱ ${esc(restTxt(ex.rest))}</button></div>`;
   if (hasLoad(ex)) {
     h += `<div class="load"><button type="button" class="step" data-step="-1" aria-label="Zmniejsz o ${fmt(ex.inc)} kg">−</button>` +
       `<label class="kg"><input id="kg-${ex.id}" data-kg="${ex.id}" inputmode="decimal" autocomplete="off" placeholder="—" aria-label="Obecny ciężar w kilogramach"><span>kg</span></label>` +
       `<button type="button" class="step" data-step="1" aria-label="Zwiększ o ${fmt(ex.inc)} kg">+</button>` +
-      `<div class="load-note" data-f="note"></div></div>`;
+      `<div class="load-note" data-f="note" hidden></div></div>`;
   } else {
     h += `<div class="bw">Masa ciała · progresja przez ${ex.unit === 's' ? 'dłuższy czas' : 'powtórzenia i tempo'}</div>`;
   }
@@ -488,7 +484,7 @@ function cardHTML(ex) {
   }
   h += `</div><button type="button" class="save" data-save="${ex.id}">Zapisz</button></div><div class="msg" data-f="msg"></div>`;
   h += `<div class="last" data-f="last"></div>`;
-  h += `<details class="more"><summary>Historia, usuwanie wpisów i technika</summary><div class="hist" data-f="hist"></div>` +
+  h += `<details class="more"><summary>Historia i technika</summary><div class="hist" data-f="hist"></div>` +
     `<p class="cue">${esc(ex.cue)}</p><div class="links">` +
     `<a href="https://www.youtube.com/results?search_query=${encodeURIComponent(ex.en + ' technique')}" target="_blank" rel="noopener">Wideo techniki ↗</a>` +
     `</div></details></article>`;
@@ -515,7 +511,7 @@ function refreshCard(id) {
   if (hasLoad(ex)) {
     const inp = $('#kg-' + id);
     if (document.activeElement !== inp) inp.value = (L && L.kg != null) ? fmt(L.kg) : '';
-    $('[data-f="note"]', card).textContent = loadNote(ex, L ? L.kg : null);
+    showNote(card, ex, L ? L.kg : null);
   }
   const st = statusOf(ex);
   $('[data-f="status"]', card).innerHTML = `<span class="pill ${st.k}">${esc(st.t)}</span>` +
@@ -541,13 +537,6 @@ function refreshCard(id) {
       (H.length > 10 ? `<button type="button" class="showall" data-all="${id}">${all ? 'Pokaż ostatnie 10' : `Pokaż całą historię (${H.length})`}</button>` : '')
     : '<p class="empty">Historia pojawi się po pierwszym zapisie.</p>';
 }
-function refreshReady() {
-  const old = $('#ready');
-  const html = readyHTML();
-  if (old) old.outerHTML = html || '<span id="ready" hidden></span>';
-  else if (html) $('.phead').insertAdjacentHTML('beforebegin', html);
-  renderHeader();
-}
 function settingsHTML() {
   return `<details class="settings"><summary>Cykl, kopia zapasowa</summary><div class="body">` +
     `<label for="cycle">Początek cyklu (tydzień 1)</label><input type="date" id="cycle" value="${esc(S.settings.cycleStart || '')}">` +
@@ -567,7 +556,7 @@ function flash(id, text, cls) {
   m.textContent = text; m.className = 'msg ' + (cls || '');
   clearTimeout(m._t); m._t = setTimeout(() => { m.textContent = ''; m.className = 'msg'; }, 3500);
 }
-function setKg(id, v) { lift(id).kg = v; persist(); refreshCard(id); refreshReady(); }
+function setKg(id, v) { lift(id).kg = v; persist(); refreshCard(id); refreshBadges(); }
 function saveSession(id) {
   const ex = EXM[id];
   const reps = [];
@@ -587,7 +576,7 @@ function saveSession(id) {
   delete S.drafts[id];
   for (let i = 0; i < ex.sets; i++) $('#r-' + id + '-' + i).value = '';
   persist();
-  refreshCard(id); refreshReady();
+  refreshCard(id); refreshBadges();
   flash(id, `Zapisano · ${dShort(entry.d)}`, 'ok');
 }
 async function exportData() {
@@ -629,12 +618,6 @@ document.addEventListener('click', ev => {
   const t = ev.target.closest('button');
   if (!t) return;
   if (t.dataset.go) { if (location.hash.replace('#', '') === t.dataset.go) render(); else location.hash = t.dataset.go; return; }
-  if (t.dataset.jump) {
-    const ex = EXM[t.dataset.jump];
-    S.scrollTo = ex.id;
-    if (location.hash.replace('#', '') === ex.part) render(); else location.hash = ex.part;
-    return;
-  }
   if (t.dataset.rest) { startRest(parseInt(t.dataset.rest, 10), EXM[t.closest('.ex').dataset.id].pl); return; }
   if (t.dataset.step) {
     const id = t.closest('.ex').dataset.id;
@@ -656,7 +639,7 @@ document.addEventListener('click', ev => {
     }
     const L = lift(id);
     L.history = (L.history || []).filter(e => e.d !== d);
-    persist(); refreshCard(id); refreshReady();
+    persist(); refreshCard(id); refreshBadges();
     flash(id, `Usunięto wpis z ${dShort(d)}.`, 'ok');
     return;
   }
@@ -675,7 +658,7 @@ document.addEventListener('input', ev => {
     lift(id).kg = v;
     persist();
     const card = t.closest('.ex');
-    $('[data-f="note"]', card).textContent = loadNote(EXM[id], v);
+    showNote(card, EXM[id], v);
     const st = statusOf(EXM[id]);
     $('[data-f="status"]', card).innerHTML = `<span class="pill ${st.k}">${esc(st.t)}</span>`;
   } else if (t.dataset.rep) {
@@ -689,7 +672,7 @@ document.addEventListener('input', ev => {
 });
 document.addEventListener('focusout', ev => {
   const t = ev.target;
-  if (t.dataset && t.dataset.kg) { const id = t.dataset.kg; setTimeout(() => { refreshCard(id); refreshReady(); }, 0); }
+  if (t.dataset && t.dataset.kg) { const id = t.dataset.kg; setTimeout(() => { refreshCard(id); refreshBadges(); }, 0); }
 });
 document.addEventListener('keydown', ev => {
   if (ev.key === 'Enter' && ev.target.dataset && ev.target.dataset.rep) { ev.preventDefault(); ev.target.blur(); saveSession(ev.target.dataset.rep); }
