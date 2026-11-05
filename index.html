@@ -130,7 +130,7 @@ main { padding-block: 10px 150px; display: grid; gap: 8px; }
 .kg input:focus { outline: none; border-bottom-color: var(--accent); }
 .kg span { font-family: var(--font-display); font-size: 1.1rem; color: var(--muted); }
 .load-note { grid-column: 1 / -1; text-align: center; color: var(--muted); font-size: 0.82rem; margin-top: -2px; font-variant-numeric: tabular-nums; }
-.bw { color: var(--muted); font-size: 0.9rem; }
+.kg output { font-family: var(--font-display); font-weight: 700; font-size: 2.1rem; line-height: 1.1; min-width: 3ch; text-align: center; font-variant-numeric: tabular-nums; }
 
 .status { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
 .pill { border-radius: 8px; padding: 4px 9px; font-weight: 600; font-size: 0.88rem; }
@@ -229,7 +229,7 @@ details.more summary { cursor: pointer; color: var(--muted); font-size: 0.88rem;
 'use strict';
 
 /* ---------- Plan według partii ciała (z „Plan - trening siłowy”, 29.10.2026) ---------- */
-// load: bar (gryf 20 kg) · db (kg na hantel) · cable · machine · bw (masa ciała) · bwplus (dociążenie / wspomaganie)
+// load: bar (gryf 20 kg) · db (kg na hantel) · cable · machine · bw (masa ciała — inc = skok celu w powt. / s) · bwplus (dociążenie / wspomaganie)
 // days: kiedy ćwiczenie jest w planie; wk: serie tygodniowo, gdy różne w różne dni; tab: krótsza nazwa na zakładce
 const PARTS = [
   { id: 'plecy', name: 'Plecy', subs: [
@@ -322,9 +322,9 @@ const PARTS = [
     { name: 'Postawa i mięśnie głębokie', ex: [
       { id: 'C1', pl: 'Y-raise na ławce skośnej', en: 'Y Raise', sets: 2, lo: 10, hi: 12, rest: 60, load: 'db', inc: 1, days: ['pon'],
         cue: 'Leżąc przodem na ławce skośnej, kciuki w górę, ramiona w literę Y. Lekki ciężar, pełna kontrola.' },
-      { id: 'C2', pl: 'Dead bug', en: 'Dead Bug', sets: 2, lo: 10, hi: 10, side: 'strona', rest: 45, load: 'bw', inc: 0, days: ['wt'],
+      { id: 'C2', pl: 'Dead bug', en: 'Dead Bug', sets: 2, lo: 10, hi: 10, side: 'strona', rest: 45, load: 'bw', inc: 2, days: ['wt'],
         cue: 'Lędźwia przyklejone do podłogi, wolno, wydech przy wyproście. Zamiennie Pallof press.' },
-      { id: 'C3', pl: 'Zwis na drążku', en: 'Dead Hang', sets: 2, lo: 30, hi: 45, unit: 's', rest: 60, load: 'bw', inc: 0, days: ['czw'],
+      { id: 'C3', pl: 'Zwis na drążku', en: 'Dead Hang', sets: 2, lo: 30, hi: 45, unit: 's', rest: 60, load: 'bw', inc: 5, days: ['czw'],
         cue: 'Luźny zwis, barki swobodnie. Rozciąga najszersze i odciąża barki. Wpisz sekundy.' },
     ] },
   ] },
@@ -349,6 +349,15 @@ const hasLoad = ex => ex.load !== 'bw';
 const unitWord = ex => ex.unit === 's' ? 's' : 'powt.';
 const restTxt = s => s >= 120 ? (s % 60 ? `${Math.floor(s / 60)}–${Math.ceil(s / 60)} min` : `${s / 60} min`) : `${s} s`;
 const weekly = ex => ex.wk || ex.sets * ex.days.length;
+// Cel serii. W ćwiczeniach z masą ciała górną granicę zmieniasz sam (−/+), dolna przesuwa się razem z nią
+const tgt = ex => {
+  const L = S.lifts[ex.id];
+  return !hasLoad(ex) && L && L.hi != null ? { lo: L.hi - (ex.hi - ex.lo), hi: L.hi } : { lo: ex.lo, hi: ex.hi };
+};
+const targetTxt = ex => {
+  const { lo, hi } = tgt(ex);
+  return `${ex.sets} × ${lo === hi ? hi : lo + '–' + hi}${ex.unit === 's' ? ' s' : ''}${ex.side ? ' / ' + ex.side : ''}`;
+};
 
 /* ---------- Stan — tylko w tym telefonie ---------- */
 const KEY = 'silownia-dziennik-v1';
@@ -376,17 +385,18 @@ function statusOf(ex) {
   const H = (L && L.history) || [];
   const last = H[H.length - 1];
   const loaded = hasLoad(ex);
+  const { lo, hi } = tgt(ex);
   if (loaded && (!L || L.kg == null)) return { k: 'unset', t: 'Ustaw ciężar startowy' };
-  if (!last) return { k: 'start', t: 'Po serii wpisz powtórzenia i zapisz' };
-  if (loaded && last.kg !== L.kg) return { k: 'fresh', t: `Nowy ciężar — zacznij od ${ex.lo} ${unitWord(ex)}` };
+  if (!last) return { k: 'start', t: `Po serii wpisz ${ex.unit === 's' ? 'sekundy' : 'powtórzenia'} i zapisz` };
+  if (loaded && last.kg !== L.kg) return { k: 'fresh', t: `Nowy ciężar — zacznij od ${lo} ${unitWord(ex)}` };
   const reps = last.reps || [];
-  if (reps.length >= ex.sets && reps.every(r => r >= ex.hi)) {
-    if (!loaded) return { k: 'up', t: 'Górna granica — utrudnij ćwiczenie' };
+  if (reps.length >= ex.sets && reps.every(r => r >= hi)) {
+    if (!loaded) return { k: 'up', t: `Górna granica — ${ex.unit === 's' ? 'wydłuż' : 'podnieś cel'} do ${hi + ex.inc} ${unitWord(ex)}`, nextHi: hi + ex.inc };
     const nx = r2(L.kg + ex.inc);
     return { k: 'up', t: `Podnieś do ${fmt(nx)} kg`, next: nx };
   }
-  if (reps.some(r => r < ex.lo)) return { k: 'low', t: `Poniżej ${ex.lo} ${unitWord(ex)} — zostań przy tym ciężarze` };
-  return { k: 'reps', t: `Dokładaj powtórzenia — cel ${Array(ex.sets).fill(ex.hi).join('/')}` };
+  if (loaded && reps.some(r => r < lo)) return { k: 'low', t: `Poniżej ${lo} ${unitWord(ex)} — zostań przy tym ciężarze` };
+  return { k: 'reps', t: `Dokładaj ${ex.unit === 's' ? 'sekundy' : 'powtórzenia'} — cel ${Array(ex.sets).fill(hi).join('/')}${ex.unit === 's' ? ' s' : ''}` };
 }
 function plates(kg) {
   let side = r2((kg - 20) / 2);
@@ -466,9 +476,8 @@ function refreshBadges() {
   PARTM[S.view].subs.forEach((s, i) => { const el = $(`[data-subn="${i}"]`); if (el) el.innerHTML = badge(upCount(s.ex)); });
 }
 function cardHTML(ex) {
-  const target = `${ex.sets} × ${ex.lo === ex.hi ? ex.hi : ex.lo + '–' + ex.hi}${ex.unit === 's' ? ' s' : ''}${ex.side ? ' / ' + ex.side : ''}`;
   let h = `<article class="ex" id="ex-${ex.id}" data-id="${ex.id}">` +
-    `<div class="ex-head"><div class="ex-title"><h3>${esc(ex.pl)}</h3><p class="meta"><b>${esc(target)}</b> · ${esc(ex.en)}</p></div>` +
+    `<div class="ex-head"><div class="ex-title"><h3>${esc(ex.pl)}</h3><p class="meta"><b data-f="target">${esc(targetTxt(ex))}</b> · ${esc(ex.en)}</p></div>` +
     `<button type="button" class="rest" data-rest="${ex.rest}" aria-label="Start przerwy ${esc(restTxt(ex.rest))}">⏱ ${esc(restTxt(ex.rest))}</button></div>`;
   if (hasLoad(ex)) {
     h += `<div class="load"><button type="button" class="step" data-step="-1" aria-label="Zmniejsz o ${fmt(ex.inc)} kg">−</button>` +
@@ -476,7 +485,11 @@ function cardHTML(ex) {
       `<button type="button" class="step" data-step="1" aria-label="Zwiększ o ${fmt(ex.inc)} kg">+</button>` +
       `<div class="load-note" data-f="note" hidden></div></div>`;
   } else {
-    h += `<div class="bw">Masa ciała · progresja przez ${ex.unit === 's' ? 'dłuższy czas' : 'powtórzenia i tempo'}</div>`;
+    const u = unitWord(ex);
+    h += `<div class="load"><button type="button" class="step" data-step="-1" aria-label="Obniż cel o ${ex.inc} ${u}">−</button>` +
+      `<div class="kg"><output data-f="hi" aria-label="Cel na serię"></output><span>${u}</span></div>` +
+      `<button type="button" class="step" data-step="1" aria-label="Podnieś cel o ${ex.inc} ${u}">+</button>` +
+      `<div class="load-note">cel na serię · masa ciała · skok ${ex.inc} ${u}</div></div>`;
   }
   h += `<div class="status" data-f="status"></div><div class="log"><div class="sets">`;
   for (let i = 0; i < ex.sets; i++) {
@@ -512,13 +525,15 @@ function refreshCard(id) {
     const inp = $('#kg-' + id);
     if (document.activeElement !== inp) inp.value = (L && L.kg != null) ? fmt(L.kg) : '';
     showNote(card, ex, L ? L.kg : null);
-  }
+  } else $('[data-f="hi"]', card).textContent = tgt(ex).hi;
+  $('[data-f="target"]', card).textContent = targetTxt(ex);
   const st = statusOf(ex);
   $('[data-f="status"]', card).innerHTML = `<span class="pill ${st.k}">${esc(st.t)}</span>` +
-    (st.next != null ? `<button type="button" class="apply" data-apply="${id}" data-v="${st.next}">Ustaw ${esc(fmt(st.next))} kg</button>` : '');
+    (st.next != null ? `<button type="button" class="apply" data-apply="${id}" data-v="${st.next}">Ustaw ${esc(fmt(st.next))} kg</button>` : '') +
+    (st.nextHi != null ? `<button type="button" class="apply" data-apply-hi="${id}" data-v="${st.nextHi}">Ustaw ${st.nextHi} ${unitWord(ex)}</button>` : '');
   for (let i = 0; i < ex.sets; i++) {
     const inp = $('#r-' + id + '-' + i);
-    inp.placeholder = last && last.reps[i] != null ? String(last.reps[i]) : (ex.unit === 's' ? 's' : String(ex.hi));
+    inp.placeholder = last && last.reps[i] != null ? String(last.reps[i]) : (ex.unit === 's' ? 's' : String(tgt(ex).hi));
     const dv = S.drafts[id] && S.drafts[id][i];
     if (document.activeElement !== inp) inp.value = dv != null ? dv : '';
   }
@@ -544,7 +559,7 @@ function settingsHTML() {
     `<p>Dane zapisują się tylko w tym telefonie. Co kilka tygodni zrób kopię i zachowaj ją w Plikach / iCloud.</p>` +
     `<div class="btnrow"><button type="button" class="btn2" data-act="export">Zapisz kopię</button><button type="button" class="btn2" data-act="import">Wczytaj kopię</button></div>` +
     `<p id="io-msg"></p>` +
-    `<p>Progresja podwójna: gdy wszystkie serie dojdą do górnej granicy, aplikacja podpowie nowy ciężar (duże boje dolne +5 kg, górne +2,5 kg, hantle i izolacje +1–2 kg).</p>` +
+    `<p>Progresja podwójna: gdy wszystkie serie dojdą do górnej granicy, aplikacja podpowie nowy ciężar (duże boje dolne +5 kg, górne +2,5 kg, hantle i izolacje +1–2 kg). W ćwiczeniach z masą ciała zamiast ciężaru podnosisz cel (sekundy lub powtórzenia).</p>` +
     `</div></details>`;
 }
 
@@ -557,6 +572,12 @@ function flash(id, text, cls) {
   clearTimeout(m._t); m._t = setTimeout(() => { m.textContent = ''; m.className = 'msg'; }, 3500);
 }
 function setKg(id, v) { lift(id).kg = v; persist(); refreshCard(id); refreshBadges(); }
+function setHi(id, v) {
+  const ex = EXM[id], L = lift(id);
+  v = Math.max(v, ex.hi - ex.lo + ex.inc);
+  if (v === ex.hi) delete L.hi; else L.hi = v;
+  persist(); refreshCard(id); refreshBadges();
+}
 function saveSession(id) {
   const ex = EXM[id];
   const reps = [];
@@ -622,12 +643,14 @@ document.addEventListener('click', ev => {
   if (t.dataset.step) {
     const id = t.closest('.ex').dataset.id;
     const ex = EXM[id];
+    if (!hasLoad(ex)) { setHi(id, tgt(ex).hi + Number(t.dataset.step) * ex.inc); return; }
     const L = lift(id);
     let v = L.kg == null ? (ex.load === 'bar' ? 20 : (ex.load === 'bwplus' ? 0 : ex.inc)) : r2(L.kg + Number(t.dataset.step) * ex.inc);
     if (ex.load !== 'bwplus' && v < 0) v = 0;
     setKg(id, v);
     return;
   }
+  if (t.dataset.applyHi) { setHi(t.dataset.applyHi, Number(t.dataset.v)); flash(t.dataset.applyHi, 'Nowy cel ustawiony.', 'ok'); return; }
   if (t.dataset.apply) { setKg(t.dataset.apply, Number(t.dataset.v)); flash(t.dataset.apply, 'Nowy ciężar ustawiony — zacznij od dolnej granicy.', 'ok'); return; }
   if (t.dataset.save) { saveSession(t.dataset.save); return; }
   if (t.dataset.del) {
