@@ -96,10 +96,18 @@ button { cursor: pointer; -webkit-tap-highlight-color: transparent; }
 main { padding-block: 10px 150px; display: grid; gap: 8px; }
 .banner { background: var(--low-soft); color: var(--low); border-radius: 10px; padding: 10px 12px; font-weight: 600; }
 
-.subhead { display: flex; justify-content: space-between; align-items: center; gap: 12px; margin-top: 8px; }
-.banner + .subhead { margin-top: 0; }
-.subhead h3 { font-size: 1.15rem; text-transform: uppercase; letter-spacing: 0.04em; display: flex; align-items: center; gap: 6px; }
-.subhead > span { color: var(--muted); font-size: 0.82rem; font-variant-numeric: tabular-nums; }
+
+/* Ćwiczenia bez zapisu od 6 tygodni — zwinięte na dole zakładki */
+.others > summary {
+  list-style: none; cursor: pointer; display: flex; justify-content: space-between; align-items: center; gap: 12px;
+  min-height: 44px; margin-top: 6px; -webkit-tap-highlight-color: transparent;
+}
+.others > summary::-webkit-details-marker { display: none; }
+.others > summary h3 { font-size: 1.15rem; text-transform: uppercase; letter-spacing: 0.04em; display: flex; align-items: center; gap: 8px; }
+.others > summary > span { color: var(--muted); font-size: 0.82rem; }
+.chev { display: inline-block; width: 0.5em; height: 0.5em; border-right: 2px solid currentColor; border-bottom: 2px solid currentColor; transform: rotate(-45deg); margin-right: 2px; }
+.others[open] .chev { transform: rotate(45deg); }
+.others-list { display: grid; gap: 8px; }
 
 .ex {
   background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius);
@@ -230,7 +238,8 @@ details.more summary { cursor: pointer; color: var(--muted); font-size: 0.88rem;
 
 /* ---------- Plan według partii ciała (z „Plan - trening siłowy”, 29.10.2026) ---------- */
 // load: bar (gryf 20 kg) · db (kg na hantel) · cable · machine · bw (masa ciała — inc = skok celu w powt. / s) · bwplus (dociążenie / wspomaganie)
-// days: kiedy ćwiczenie jest w planie; wk: serie tygodniowo, gdy różne w różne dni; tab: krótsza nazwa na zakładce
+// days / wk: dni i serie z planu (informacyjnie, nie wyświetlają się); tab: krótsza nazwa na zakładce
+// Kolejność na ekranie wynika z historii (najczęściej i ostatnio wykonywane u góry), kolejność tutaj to tylko remis
 const PARTS = [
   { id: 'plecy', name: 'Plecy', subs: [
     { name: 'Szerokość', ex: [
@@ -348,7 +357,6 @@ const dShort = s => { const [, m, d] = s.split('-'); return `${d}.${m}`; };
 const hasLoad = ex => ex.load !== 'bw';
 const unitWord = ex => ex.unit === 's' ? 's' : 'powt.';
 const restTxt = s => s >= 120 ? (s % 60 ? `${Math.floor(s / 60)}–${Math.ceil(s / 60)} min` : `${s / 60} min`) : `${s} s`;
-const weekly = ex => ex.wk || ex.sets * ex.days.length;
 // Cel serii. W ćwiczeniach z masą ciała górną granicę zmieniasz sam (−/+), dolna przesuwa się razem z nią
 const tgt = ex => {
   const L = S.lifts[ex.id];
@@ -398,6 +406,27 @@ function statusOf(ex) {
   if (loaded && reps.some(r => r < lo)) return { k: 'low', t: `Poniżej ${lo} ${unitWord(ex)} — zostań przy tym ciężarze` };
   return { k: 'reps', t: `Dokładaj ${ex.unit === 's' ? 'sekundy' : 'powtórzenia'} — cel ${Array(ex.sets).fill(hi).join('/')}${ex.unit === 's' ? ' s' : ''}` };
 }
+/* ---------- Kolejność: najczęściej i ostatnio wykonywane u góry ---------- */
+// Wynik = suma wpisów, gdzie wpis sprzed 2 tygodni waży połowę (dzisiejszy 1, sprzed 4 tyg. ¼).
+// Bez zapisu od 6 tygodni (albo nigdy) → zwinięte „Pozostałe” na dole.
+const HALF_LIFE = 14, ACTIVE_DAYS = 42;
+const ORDER = Object.fromEntries(EX.map((e, i) => [e.id, i]));
+const ageDays = d => Math.max(0, Math.round((new Date(iso(new Date()) + 'T00:00:00') - new Date(d + 'T00:00:00')) / 86400000));
+function usage(ex) {
+  const H = (S.lifts[ex.id] && S.lifts[ex.id].history) || [];
+  let score = 0;
+  for (const e of H) score += Math.pow(0.5, ageDays(e.d) / HALF_LIFE);
+  return { ex, score, age: H.length ? ageDays(H[H.length - 1].d) : Infinity };
+}
+function arrange(partId) {
+  const list = EX.filter(e => e.part === partId).map(usage);
+  list.sort((a, b) => b.score - a.score || ORDER[a.ex.id] - ORDER[b.ex.id]);
+  let main = list.filter(u => u.age <= ACTIVE_DAYS);
+  if (!main.length) main = list.filter(u => u.age < Infinity); // po dłuższej przerwie: wszystko, co kiedykolwiek zapisane
+  if (!main.length) main = list;                                 // nowa zakładka bez zapisów: cały plan
+  return { main: main.map(u => u.ex), rest: list.filter(u => !main.includes(u)).map(u => u.ex) };
+}
+
 function plates(kg) {
   let side = r2((kg - 20) / 2);
   if (side < 0) return 'mniej niż gryf 20 kg';
@@ -449,7 +478,7 @@ function renderHeader() {
   if (ci && !ci.pre) t += ` · tydz. ${ci.w}/6 · RIR ${ci.rir.split(' ·')[0]}`;
   $('#today').textContent = t;
   $('#tabs').innerHTML = PARTS.map(p => {
-    const n = upCount(EX.filter(e => e.part === p.id));
+    const n = upCount(arrange(p.id).main);
     return `<button type="button" class="tab" data-go="${p.id}" ${S.view === p.id ? 'aria-current="page"' : ''}>${esc(p.tab || p.name)}${badge(n)}</button>`;
   }).join('');
 }
@@ -459,22 +488,20 @@ function render() {
   S.view = currentView();
   try { localStorage.setItem(KEY + ':tab', S.view); } catch (e) { /* nic */ }
   renderHeader();
-  const p = PARTM[S.view];
+  // Kolejność liczona tylko przy wejściu na zakładkę — po zapisie karty nie przeskakują pod palcem
+  const { main, rest } = arrange(S.view);
   let h = `<div class="banner" id="banner" ${S.banner ? '' : 'hidden'}>${esc(S.banner)}</div>`;
-  p.subs.forEach((s, i) => {
-    const sw = s.ex.reduce((a, e) => a + weekly(e), 0);
-    h += `<div class="subhead"><h3>${esc(s.name)}<span data-subn="${i}">${badge(upCount(s.ex))}</span></h3><span>${sw} serii / tydz.</span></div>`;
-    for (const e of s.ex) h += cardHTML(e);
-  });
+  for (const e of main) h += cardHTML(e);
+  if (rest.length) {
+    h += `<details class="others"><summary><h3><span class="chev" aria-hidden="true"></span>Pozostałe · ${rest.length}</h3>` +
+      `<span>bez zapisu od 6 tyg.</span></summary><div class="others-list">${rest.map(cardHTML).join('')}</div></details>`;
+  }
   h += settingsHTML();
   $('#main').innerHTML = h;
-  EX.filter(e => e.part === p.id).forEach(e => refreshCard(e.id));
+  main.concat(rest).forEach(e => refreshCard(e.id));
   window.scrollTo(0, 0);
 }
-function refreshBadges() {
-  renderHeader();
-  PARTM[S.view].subs.forEach((s, i) => { const el = $(`[data-subn="${i}"]`); if (el) el.innerHTML = badge(upCount(s.ex)); });
-}
+const refreshBadges = renderHeader;
 function cardHTML(ex) {
   let h = `<article class="ex" id="ex-${ex.id}" data-id="${ex.id}">` +
     `<div class="ex-head"><div class="ex-title"><h3>${esc(ex.pl)}</h3><p class="meta"><b data-f="target">${esc(targetTxt(ex))}</b> · ${esc(ex.en)}</p></div>` +
@@ -560,6 +587,7 @@ function settingsHTML() {
     `<div class="btnrow"><button type="button" class="btn2" data-act="export">Zapisz kopię</button><button type="button" class="btn2" data-act="import">Wczytaj kopię</button></div>` +
     `<p id="io-msg"></p>` +
     `<p>Progresja podwójna: gdy wszystkie serie dojdą do górnej granicy, aplikacja podpowie nowy ciężar (duże boje dolne +5 kg, górne +2,5 kg, hantle i izolacje +1–2 kg). W ćwiczeniach z masą ciała zamiast ciężaru podnosisz cel (sekundy lub powtórzenia).</p>` +
+    `<p>Kolejność: u góry ćwiczenia robione najczęściej i ostatnio (liczy się przy wejściu na zakładkę). Te bez zapisu od 6 tygodni są zwinięte w „Pozostałe” na dole — wystarczy jeden zapis, żeby wróciły na listę.</p>` +
     `</div></details>`;
 }
 
