@@ -108,6 +108,49 @@ main { padding-block: 10px 150px; display: grid; gap: 8px; }
 .chev { display: inline-block; width: 0.5em; height: 0.5em; border-right: 2px solid currentColor; border-bottom: 2px solid currentColor; transform: rotate(-45deg); margin-right: 2px; }
 .others[open] .chev { transform: rotate(45deg); }
 .others-list { display: grid; gap: 8px; }
+.addex {
+  width: 100%; min-height: 48px; border: 1.5px dashed var(--line); border-radius: var(--radius);
+  background: none; color: var(--accent); font-weight: 700; margin-top: 4px;
+}
+.toast { display: flex; justify-content: space-between; align-items: center; gap: 12px; background: var(--chip); border-radius: 10px; padding: 6px 6px 6px 12px; font-size: 0.92rem; }
+.toast button, .linkbtn { border: 0; background: none; color: var(--accent); font-weight: 700; font-size: 0.92rem; min-height: 40px; padding: 0 8px; }
+.linkbtn { padding: 0; font-weight: 600; }
+.rmlist { display: grid; gap: 6px; }
+.rmlist div { display: flex; justify-content: space-between; align-items: center; gap: 10px; }
+
+/* Edytor ćwiczenia — okno na środku, na telefonie prawie cały ekran */
+dialog.ed {
+  width: min(560px, calc(100vw - 20px)); max-height: calc(100vh - 20px); max-height: calc(100dvh - 20px); margin: auto; padding: 0;
+  border: 1px solid var(--line); border-radius: 16px; background: var(--surface); color: var(--ink); overflow: auto;
+}
+dialog.ed::backdrop { background: rgba(0, 0, 0, 0.5); }
+.ed form { display: grid; gap: 12px; padding: 16px 16px 0; }
+.ed h2:focus { outline: none; }
+.ed h2 { font-size: 1.35rem; text-transform: uppercase; letter-spacing: 0.03em; }
+.fld { display: grid; gap: 4px; font-size: 0.8rem; font-weight: 600; color: var(--muted); min-width: 0; }
+.fld small { font-weight: 400; }
+.fld input, .fld select, .fld textarea {
+  width: 100%; min-height: 44px; padding: 8px 10px; border: 1px solid var(--line); border-radius: 10px;
+  background: var(--bg); color: var(--ink); font-family: inherit; font-size: 16px; font-weight: 400;
+}
+.fld select {
+  -webkit-appearance: none; appearance: none; padding-right: 26px;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M1 1l4 4 4-4' fill='none' stroke='%23888' stroke-width='1.6'/%3E%3C/svg%3E");
+  background-repeat: no-repeat; background-position: right 10px center;
+}
+.fld textarea { resize: vertical; line-height: 1.4; }
+.fld input:focus, .fld select:focus, .fld textarea:focus { outline: 2px solid var(--accent); outline-offset: 0; }
+.row2, .row3 { display: grid; gap: 10px; }
+.row2 { grid-template-columns: 1fr 1fr; }
+.row3 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.ed .msg { margin: 0; }
+.ed-actions {
+  position: sticky; bottom: 0; display: flex; flex-wrap: wrap; gap: 8px; align-items: center;
+  padding: 12px 0 16px; background: var(--surface); border-top: 1px solid var(--line);
+}
+.ed-actions .sp { flex: 1; }
+.btn-del { border: 1px solid var(--low); background: none; color: var(--low); border-radius: 10px; padding: 0 12px; height: 44px; font-weight: 600; }
+.btn-del.armed { background: var(--low); color: var(--surface); }
 
 .ex {
   background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius);
@@ -231,13 +274,49 @@ details.more summary { cursor: pointer; color: var(--muted); font-size: 0.88rem;
   </div>
 </div>
 <input type="file" id="import-file" accept="application/json,.json" hidden>
+<dialog class="ed" id="ed" aria-labelledby="ed-h">
+  <form id="ed-form" novalidate>
+    <h2 id="ed-h" tabindex="-1" autofocus>Edytuj ćwiczenie</h2>
+    <label class="fld">Nazwa<input name="pl" maxlength="80" autocomplete="off" enterkeyhint="next"></label>
+    <label class="fld"><span>Nazwa angielska <small>· opcjonalnie, do szukania wideo</small></span><input name="en" maxlength="80" autocomplete="off" autocapitalize="words"></label>
+    <div class="row2">
+      <label class="fld">Partia<select name="part"></select></label>
+      <label class="fld">Obciążenie<select name="load"></select></label>
+    </div>
+    <div class="row3">
+      <label class="fld">Serie<input name="sets" inputmode="numeric" autocomplete="off"></label>
+      <label class="fld">Powt. od<input name="lo" inputmode="numeric" autocomplete="off"></label>
+      <label class="fld">do<input name="hi" inputmode="numeric" autocomplete="off"></label>
+    </div>
+    <div class="row2">
+      <label class="fld">Jednostka<select name="unit"><option value="">powtórzenia</option><option value="s">sekundy</option></select></label>
+      <label class="fld">Liczone<select name="side"><option value="">łącznie</option><option value="strona">na stronę</option><option value="noga">na nogę</option><option value="ręka">na rękę</option></select></label>
+    </div>
+    <div class="row2">
+      <label class="fld"><span id="ed-inc-l">Skok ciężaru (kg)</span><input name="inc" inputmode="decimal" autocomplete="off"></label>
+      <label class="fld">Przerwa (s)<input name="rest" inputmode="numeric" autocomplete="off"></label>
+    </div>
+    <label class="fld">Link do wideo<input name="video" type="url" inputmode="url" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="np. https://youtu.be/…"></label>
+    <label class="fld">Wskazówki techniczne<textarea name="cue" rows="3" maxlength="600"></textarea></label>
+    <p class="msg err" id="ed-err" aria-live="polite"></p>
+    <div class="ed-actions">
+      <button type="button" class="btn-del" data-act="ed-del">Usuń</button>
+      <button type="button" class="btn2" data-act="ed-base">Wartości z planu</button>
+      <span class="sp"></span>
+      <button type="button" class="btn2" data-act="ed-cancel">Anuluj</button>
+      <button type="submit" class="save">Zapisz</button>
+    </div>
+  </form>
+</dialog>
 
 <script>
 (() => {
 'use strict';
 
 /* ---------- Plan według partii ciała (z „Plan - trening siłowy”, 29.10.2026) ---------- */
+// To jest plan bazowy. Zmiany z edytora (S.plan) zapisują się w telefonie i nakładają się na niego — patrz buildEx().
 // load: bar (gryf 20 kg) · db (kg na hantel) · cable · machine · bw (masa ciała — inc = skok celu w powt. / s) · bwplus (dociążenie / wspomaganie)
+// video: własny link do wideo (bez niego — wyszukiwanie na YouTube)
 // days / wk: dni i serie z planu (informacyjnie, nie wyświetlają się); tab: krótsza nazwa na zakładce
 // Kolejność na ekranie wynika z historii (najczęściej i ostatnio wykonywane u góry), kolejność tutaj to tylko remis
 const PARTS = [
@@ -338,9 +417,9 @@ const PARTS = [
     ] },
   ] },
 ];
-const EX = [];
-const EXM = {};
-for (const p of PARTS) for (const s of p.subs) for (const e of s.ex) { e.part = p.id; EX.push(e); EXM[e.id] = e; }
+const BASE = {};
+for (const p of PARTS) for (const s of p.subs) for (const e of s.ex) BASE[e.id] = { ...e, part: p.id };
+let EX = [], EXM = {}, ORDER = {};
 const PARTM = Object.fromEntries(PARTS.map(p => [p.id, p]));
 const PLATES = [25, 20, 15, 10, 5, 2.5, 1.25];
 const RIR = { 1: '3 · wejście', 2: '2', 3: '2', 4: '1 (izolacje 0)', 5: '1 (izolacje 0)', 6: 'deload 3–4' };
@@ -369,20 +448,33 @@ const targetTxt = ex => {
 
 /* ---------- Stan — tylko w tym telefonie ---------- */
 const KEY = 'silownia-dziennik-v1';
-const S = { lifts: {}, settings: {}, drafts: {}, showAll: {}, view: null, banner: '' };
+// plan: edits = zmienione pola ćwiczeń z planu bazowego · added = własne ćwiczenia · removed = usunięte (historia zostaje)
+const normPlan = p => ({ edits: (p && p.edits) || {}, added: (p && p.added) || [], removed: (p && p.removed) || [] });
+const S = { lifts: {}, settings: {}, plan: normPlan(), drafts: {}, showAll: {}, view: null, banner: '', toast: null };
 try {
   const raw = localStorage.getItem(KEY);
-  if (raw) { const o = JSON.parse(raw); S.lifts = o.lifts || {}; S.settings = o.settings || {}; }
+  if (raw) { const o = JSON.parse(raw); S.lifts = o.lifts || {}; S.settings = o.settings || {}; S.plan = normPlan(o.plan); }
 } catch (e) { S.banner = 'Ta przeglądarka blokuje zapis. Otwórz stronę w Safari (nie w trybie prywatnym).'; }
+const dump = () => JSON.stringify({ v: 1, lifts: S.lifts, settings: S.settings, plan: S.plan });
 let saveT = null;
 function persist() {
   clearTimeout(saveT);
   saveT = setTimeout(() => {
-    try { localStorage.setItem(KEY, JSON.stringify({ v: 1, lifts: S.lifts, settings: S.settings })); }
+    saveT = null;
+    try { localStorage.setItem(KEY, dump()); }
     catch (e) { setBanner('Nie udało się zapisać danych na telefonie.'); }
   }, 250);
 }
-window.addEventListener('pagehide', () => { if (saveT) { clearTimeout(saveT); try { localStorage.setItem(KEY, JSON.stringify({ v: 1, lifts: S.lifts, settings: S.settings })); } catch (e) { /* nic */ } } });
+window.addEventListener('pagehide', () => { if (saveT) { clearTimeout(saveT); try { localStorage.setItem(KEY, dump()); } catch (e) { /* nic */ } } });
+function buildEx() {
+  const rm = new Set(S.plan.removed);
+  EX = Object.values(BASE).filter(e => !rm.has(e.id)).map(e => ({ ...e, ...(S.plan.edits[e.id] || {}) }))
+    .concat(S.plan.added.filter(e => !rm.has(e.id)).map(e => ({ ...e })))
+    .filter(e => PARTM[e.part]);
+  EXM = Object.fromEntries(EX.map(e => [e.id, e]));
+  ORDER = Object.fromEntries(EX.map((e, i) => [e.id, i]));
+}
+buildEx();
 try { if (navigator.storage && navigator.storage.persist) navigator.storage.persist(); } catch (e) { /* opcjonalne */ }
 function setBanner(t) { S.banner = t; const b = $('#banner'); if (b) { b.textContent = t; b.hidden = !t; } }
 const lift = id => S.lifts[id] || (S.lifts[id] = { history: [] });
@@ -410,13 +502,14 @@ function statusOf(ex) {
 // Wynik = suma wpisów, gdzie wpis sprzed 2 tygodni waży połowę (dzisiejszy 1, sprzed 4 tyg. ¼).
 // Bez zapisu od 6 tygodni (albo nigdy) → zwinięte „Pozostałe” na dole.
 const HALF_LIFE = 14, ACTIVE_DAYS = 42;
-const ORDER = Object.fromEntries(EX.map((e, i) => [e.id, i]));
 const ageDays = d => Math.max(0, Math.round((new Date(iso(new Date()) + 'T00:00:00') - new Date(d + 'T00:00:00')) / 86400000));
 function usage(ex) {
   const H = (S.lifts[ex.id] && S.lifts[ex.id].history) || [];
   let score = 0;
   for (const e of H) score += Math.pow(0.5, ageDays(e.d) / HALF_LIFE);
-  return { ex, score, age: H.length ? ageDays(H[H.length - 1].d) : Infinity };
+  let age = H.length ? ageDays(H[H.length - 1].d) : Infinity;
+  if (ex.added) age = Math.min(age, ageDays(ex.added)); // nowe lub przywrócone ćwiczenie: 6 tygodni na liście głównej
+  return { ex, score, age };
 }
 function arrange(partId) {
   const list = EX.filter(e => e.part === partId).map(usage);
@@ -491,7 +584,10 @@ function render() {
   // Kolejność liczona tylko przy wejściu na zakładkę — po zapisie karty nie przeskakują pod palcem
   const { main, rest } = arrange(S.view);
   let h = `<div class="banner" id="banner" ${S.banner ? '' : 'hidden'}>${esc(S.banner)}</div>`;
+  if (S.toast) h += `<div class="toast" role="status"><span>Usunięto „${esc(S.toast.pl)}”.</span><button type="button" data-restore="${S.toast.id}">Cofnij</button></div>`;
+  S.toast = null;
   for (const e of main) h += cardHTML(e);
+  h += `<button type="button" class="addex" data-act="add">+ Dodaj ćwiczenie</button>`;
   if (rest.length) {
     h += `<details class="others"><summary><h3><span class="chev" aria-hidden="true"></span>Pozostałe · ${rest.length}</h3>` +
       `<span>bez zapisu od 6 tyg.</span></summary><div class="others-list">${rest.map(cardHTML).join('')}</div></details>`;
@@ -504,7 +600,7 @@ function render() {
 const refreshBadges = renderHeader;
 function cardHTML(ex) {
   let h = `<article class="ex" id="ex-${ex.id}" data-id="${ex.id}">` +
-    `<div class="ex-head"><div class="ex-title"><h3>${esc(ex.pl)}</h3><p class="meta"><b data-f="target">${esc(targetTxt(ex))}</b> · ${esc(ex.en)}</p></div>` +
+    `<div class="ex-head"><div class="ex-title"><h3>${esc(ex.pl)}</h3><p class="meta"><b data-f="target">${esc(targetTxt(ex))}</b>${ex.en ? ' · ' + esc(ex.en) : ''}</p></div>` +
     `<button type="button" class="rest" data-rest="${ex.rest}" aria-label="Start przerwy ${esc(restTxt(ex.rest))}">⏱ ${esc(restTxt(ex.rest))}</button></div>`;
   if (hasLoad(ex)) {
     h += `<div class="load"><button type="button" class="step" data-step="-1" aria-label="Zmniejsz o ${fmt(ex.inc)} kg">−</button>` +
@@ -525,9 +621,10 @@ function cardHTML(ex) {
   h += `</div><button type="button" class="save" data-save="${ex.id}">Zapisz</button></div><div class="msg" data-f="msg"></div>`;
   h += `<div class="last" data-f="last"></div>`;
   h += `<details class="more"><summary>Historia i technika</summary><div class="hist" data-f="hist"></div>` +
-    `<p class="cue">${esc(ex.cue)}</p><div class="links">` +
-    `<a href="https://www.youtube.com/results?search_query=${encodeURIComponent(ex.en + ' technique')}" target="_blank" rel="noopener">Wideo techniki ↗</a>` +
-    `</div></details></article>`;
+    (ex.cue ? `<p class="cue">${esc(ex.cue)}</p>` : '') + `<div class="links">` +
+    (ex.video ? `<a href="${esc(ex.video)}" target="_blank" rel="noopener">Wideo ↗</a>`
+      : `<a href="https://www.youtube.com/results?search_query=${encodeURIComponent((ex.en || ex.pl) + ' technique')}" target="_blank" rel="noopener">Szukaj wideo ↗</a>`) +
+    `<button type="button" class="linkbtn" data-edit="${ex.id}">Edytuj ćwiczenie</button></div></details></article>`;
   return h;
 }
 function sparkSVG(vals) {
@@ -579,8 +676,12 @@ function refreshCard(id) {
       (H.length > 10 ? `<button type="button" class="showall" data-all="${id}">${all ? 'Pokaż ostatnie 10' : `Pokaż całą historię (${H.length})`}</button>` : '')
     : '<p class="empty">Historia pojawi się po pierwszym zapisie.</p>';
 }
+function removedList() {
+  return S.plan.removed.map(id => S.plan.added.find(a => a.id === id) || (BASE[id] && { ...BASE[id], ...(S.plan.edits[id] || {}) })).filter(Boolean);
+}
 function settingsHTML() {
-  return `<details class="settings"><summary>Cykl, kopia zapasowa</summary><div class="body">` +
+  const rm = removedList();
+  return `<details class="settings"><summary>Cykl, kopia zapasowa${rm.length ? ', usunięte ćwiczenia' : ''}</summary><div class="body">` +
     `<label for="cycle">Początek cyklu (tydzień 1)</label><input type="date" id="cycle" value="${esc(S.settings.cycleStart || '')}">` +
     `<p id="cyc-txt">${esc(cycleText())}</p>` +
     `<p>Dane zapisują się tylko w tym telefonie. Co kilka tygodni zrób kopię i zachowaj ją w Plikach / iCloud.</p>` +
@@ -588,6 +689,9 @@ function settingsHTML() {
     `<p id="io-msg"></p>` +
     `<p>Progresja podwójna: gdy wszystkie serie dojdą do górnej granicy, aplikacja podpowie nowy ciężar (duże boje dolne +5 kg, górne +2,5 kg, hantle i izolacje +1–2 kg). W ćwiczeniach z masą ciała zamiast ciężaru podnosisz cel (sekundy lub powtórzenia).</p>` +
     `<p>Kolejność: u góry ćwiczenia robione najczęściej i ostatnio (liczy się przy wejściu na zakładkę). Te bez zapisu od 6 tygodni są zwinięte w „Pozostałe” na dole — wystarczy jeden zapis, żeby wróciły na listę.</p>` +
+    `<p>Ćwiczenia zmieniasz przez „Edytuj ćwiczenie” w „Historia i technika”, nowe dodajesz przyciskiem „+ Dodaj ćwiczenie”. Zmiany są w kopii zapasowej.</p>` +
+    (rm.length ? `<p><b>Usunięte ćwiczenia</b> — historia zostaje, możesz je przywrócić:</p><div class="rmlist">` +
+      rm.map(e => `<div><span>${esc(e.pl)} · ${esc(PARTM[e.part] ? PARTM[e.part].tab || PARTM[e.part].name : '')}</span><button type="button" class="btn2" data-restore="${e.id}">Przywróć</button></div>`).join('') + `</div>` : '') +
     `</div></details>`;
 }
 
@@ -630,7 +734,7 @@ function saveSession(id) {
 }
 async function exportData() {
   const msg = $('#io-msg');
-  const json = JSON.stringify({ app: 'silownia-dziennik', v: 1, saved: new Date().toISOString(), lifts: S.lifts, settings: S.settings }, null, 1);
+  const json = JSON.stringify({ app: 'silownia-dziennik', v: 1, saved: new Date().toISOString(), lifts: S.lifts, settings: S.settings, plan: S.plan }, null, 1);
   const name = `silownia-kopia-${iso(new Date())}.json`;
   try {
     const file = new File([json], name, { type: 'application/json' });
@@ -653,8 +757,8 @@ function importData(file) {
     try {
       const o = JSON.parse(fr.result);
       if (!o || o.app !== 'silownia-dziennik' || typeof o.lifts !== 'object') throw new Error('format');
-      S.lifts = o.lifts; S.settings = o.settings || {};
-      persist(); render();
+      S.lifts = o.lifts; S.settings = o.settings || {}; S.plan = normPlan(o.plan);
+      buildEx(); persist(); render();
       $('#io-msg').textContent = `Wczytano kopię z ${String(o.saved || '').slice(0, 10)}.`;
       $('.settings').open = true;
     } catch (e) { msg.textContent = 'To nie jest plik kopii z tej aplikacji.'; }
@@ -663,9 +767,121 @@ function importData(file) {
   fr.readAsText(file);
 }
 
+/* ---------- Edytor ćwiczeń ---------- */
+const LOADS = [['bar', 'Sztanga'], ['db', 'Hantle (kg na hantel)'], ['cable', 'Wyciąg'], ['machine', 'Maszyna'], ['bwplus', 'Masa ciała + kg'], ['bw', 'Masa ciała (bez kg)']];
+const FIELDS = ['pl', 'en', 'part', 'load', 'sets', 'lo', 'hi', 'unit', 'side', 'inc', 'rest', 'video', 'cue'];
+const defaultInc = (load, unit) => load === 'bw' ? (unit === 's' ? 5 : 1) : load === 'db' ? 2 : 2.5;
+const ED = { id: null };
+const dlg = $('#ed'), form = $('#ed-form');
+const F = n => form.elements[n];
+F('part').innerHTML = PARTS.map(p => `<option value="${p.id}">${esc(p.name)}</option>`).join('');
+F('load').innerHTML = LOADS.map(([v, t]) => `<option value="${v}">${esc(t)}</option>`).join('');
+function incLabel() {
+  $('#ed-inc-l').textContent = F('load').value === 'bw' ? `Skok celu (${F('unit').value === 's' ? 's' : 'powt.'})` : 'Skok ciężaru (kg)';
+}
+function fillForm(ex) {
+  for (const k of FIELDS) F(k).value = k === 'inc' ? fmt(ex.inc) : (ex[k] == null ? '' : String(ex[k]));
+  if (!F('part').value) F('part').value = S.view;
+  if (!F('load').value) F('load').value = 'machine';
+  incLabel();
+}
+function openEditor(id) {
+  ED.id = id;
+  const ex = id ? EXM[id] : { pl: '', en: '', part: S.view, load: 'machine', sets: 3, lo: 10, hi: 12, unit: '', side: '', inc: 2.5, rest: 90, video: '', cue: '' };
+  fillForm(id ? { ...ex, ...tgt(ex) } : ex);
+  $('#ed-h').textContent = id ? 'Edytuj ćwiczenie' : 'Nowe ćwiczenie';
+  $('#ed-err').textContent = '';
+  const del = $('[data-act="ed-del"]', form);
+  del.hidden = !id; delete del.dataset.armed; del.classList.remove('armed'); del.textContent = 'Usuń';
+  $('[data-act="ed-base"]', form).hidden = !(id && BASE[id] && S.plan.edits[id] && Object.keys(S.plan.edits[id]).some(k => k !== 'added'));
+  if (dlg.showModal) dlg.showModal(); else dlg.setAttribute('open', '');
+  dlg.scrollTop = 0;
+  if (!id) setTimeout(() => F('pl').focus(), 50);
+}
+function closeEditor() { if (dlg.close) dlg.close(); else dlg.removeAttribute('open'); }
+function readForm() {
+  const g = k => F(k).value.trim();
+  const bad = (k, t) => { $('#ed-err').textContent = t; F(k).focus(); return null; };
+  const v = { pl: g('pl'), en: g('en'), part: g('part'), load: g('load'), unit: g('unit'), side: g('side'), cue: g('cue') };
+  if (!v.pl) return bad('pl', 'Wpisz nazwę ćwiczenia.');
+  const int = k => /^\d+$/.test(g(k)) ? parseInt(g(k), 10) : NaN;
+  v.sets = int('sets'); v.lo = int('lo'); v.hi = int('hi'); v.rest = int('rest'); v.inc = parseNum(g('inc'));
+  if (!(v.sets >= 1 && v.sets <= 10)) return bad('sets', 'Serie: od 1 do 10.');
+  if (!(v.lo >= 1 && v.lo <= 999)) return bad('lo', 'Podaj dolną granicę powtórzeń (liczba ≥ 1).');
+  if (!(v.hi >= v.lo && v.hi <= 999)) return bad('hi', 'Górna granica nie może być mniejsza niż dolna.');
+  if (!(v.inc > 0 && v.inc <= 100)) return bad('inc', 'Skok musi być większy od zera.');
+  if (!(v.rest >= 0 && v.rest <= 900)) return bad('rest', 'Przerwa w sekundach: od 0 do 900.');
+  let url = g('video');
+  if (url && !/^https?:\/\//i.test(url)) url = 'https://' + url;
+  if (url && !/^https?:\/\/[^\s/]+\.[^\s/]+\S*$/i.test(url)) return bad('video', 'Link wygląda na niepoprawny — wklej pełny adres wideo.');
+  v.video = url;
+  return v;
+}
+const same = (a, b) => (a == null ? '' : String(a)) === (b == null ? '' : String(b));
+function saveEditor() {
+  const v = readForm();
+  if (!v) return;
+  let id = ED.id;
+  if (id && BASE[id]) {
+    const b = BASE[id], prev = S.plan.edits[id] || {}, d = {};
+    for (const k of FIELDS) if (!same(v[k], b[k])) d[k] = v[k];
+    if (prev.added) d.added = prev.added;
+    if (Object.keys(d).length) S.plan.edits[id] = d; else delete S.plan.edits[id];
+  } else if (id) {
+    Object.assign(S.plan.added.find(a => a.id === id), v);
+  } else {
+    id = 'U' + Date.now().toString(36);
+    S.plan.added.push({ id, ...v, added: iso(new Date()) });
+  }
+  if (S.lifts[id]) delete S.lifts[id].hi; // cel z edytora zastępuje cel ustawiony −/+
+  const isNew = !ED.id;
+  buildEx(); persist(); closeEditor();
+  if (location.hash.replace('#', '') !== v.part) { history.replaceState(null, '', '#' + v.part); }
+  render();
+  const card = document.getElementById('ex-' + id);
+  if (card) {
+    const box = card.closest('.others'); if (box) box.open = true;
+    card.scrollIntoView({ block: 'center' });
+    flash(id, isNew ? 'Dodano ćwiczenie.' : 'Zapisano zmiany.', 'ok');
+  }
+}
+function removeEx(id) {
+  const ex = EXM[id];
+  if (!S.plan.removed.includes(id)) S.plan.removed.push(id);
+  delete S.drafts[id];
+  buildEx(); persist(); closeEditor();
+  S.toast = { id, pl: ex ? ex.pl : '' };
+  render();
+}
+function restoreEx(id) {
+  S.plan.removed = S.plan.removed.filter(x => x !== id);
+  const a = S.plan.added.find(x => x.id === id);
+  if (a) a.added = iso(new Date()); else (S.plan.edits[id] = S.plan.edits[id] || {}).added = iso(new Date());
+  buildEx(); persist();
+  const part = EXM[id] ? EXM[id].part : S.view;
+  if (location.hash.replace('#', '') !== part) history.replaceState(null, '', '#' + part);
+  render();
+  const card = document.getElementById('ex-' + id);
+  if (card) { card.scrollIntoView({ block: 'center' }); flash(id, 'Przywrócono ćwiczenie z historią.', 'ok'); }
+}
+form.addEventListener('submit', ev => { ev.preventDefault(); saveEditor(); });
+form.addEventListener('change', ev => {
+  const n = ev.target.name;
+  if (n === 'load' || n === 'unit') { F('inc').value = fmt(defaultInc(F('load').value, F('unit').value)); incLabel(); }
+});
+
 document.addEventListener('click', ev => {
   const t = ev.target.closest('button');
   if (!t) return;
+  if (t.dataset.edit) { openEditor(t.dataset.edit); return; }
+  if (t.dataset.restore) { restoreEx(t.dataset.restore); return; }
+  if (t.dataset.act === 'add') { openEditor(null); return; }
+  if (t.dataset.act === 'ed-cancel') { closeEditor(); return; }
+  if (t.dataset.act === 'ed-base') { fillForm({ ...BASE[ED.id] }); $('#ed-err').textContent = 'Wpisane wartości z planu — zatwierdź „Zapisz”.'; return; }
+  if (t.dataset.act === 'ed-del') {
+    if (!t.dataset.armed) { t.dataset.armed = '1'; t.textContent = 'Na pewno usunąć?'; t.classList.add('armed'); return; }
+    removeEx(ED.id); return;
+  }
   if (t.dataset.go) { if (location.hash.replace('#', '') === t.dataset.go) render(); else location.hash = t.dataset.go; return; }
   if (t.dataset.rest) { startRest(parseInt(t.dataset.rest, 10), EXM[t.closest('.ex').dataset.id].pl); return; }
   if (t.dataset.step) {
