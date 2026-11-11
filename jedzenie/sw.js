@@ -1,5 +1,5 @@
 // Offline: pliki aplikacji w pamięci podręcznej. Strona główna — najpierw sieć (żeby dotarły aktualizacje), bez sieci z pamięci.
-const CACHE = 'jedzenie-v3';
+const CACHE = 'jedzenie-v4';
 const FILES = ['./', './index.html', './manifest.webmanifest', './icon-180.png', './icon-192.png', './icon-512.png'];
 const SCOPE = new URL(self.registration.scope).pathname;
 const mine = u => u.origin === location.origin && u.pathname.startsWith(SCOPE) && !u.pathname.slice(SCOPE.length).includes('/');
