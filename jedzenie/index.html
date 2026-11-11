@@ -1,0 +1,931 @@
+<!doctype html>
+<html lang="pl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Jedzenie</title>
+<meta name="description" content="Dziennik jedzenia według posiłków dnia — działa offline">
+<meta name="theme-color" content="#FFFFFF" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#181D1C" media="(prefers-color-scheme: dark)">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="Jedzenie">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="icon-180.png">
+<link rel="icon" type="image/png" href="icon-192.png">
+<style>
+/* Ten sam układ co „Siłownia”: jedna kolumna (max 720px), przypięte zakładki u góry, fonty systemowe (offline). */
+:root {
+  --bg: #EDF0EC;
+  --surface: #FFFFFF;
+  --ink: #15181B;
+  --muted: #59616A;
+  --line: #D3D8D3;
+  --chip: #E3E8E3;
+  --accent: #17694F;
+  --accent-ink: #FFFFFF;
+  --accent-soft: #D7ECE2;
+  --prot: #1E4FA6;
+  --warn: #A35A00;
+  --low: #A3261D;
+  --font-display: "Avenir Next Condensed", "Arial Narrow", "Roboto Condensed", system-ui, sans-serif;
+  --font-body: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+  --radius: 14px;
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #0F1312; --surface: #181D1C; --ink: #E8ECEA; --muted: #9AA5A1; --line: #2A3230; --chip: #252D2B;
+    --accent: #5CC9A0; --accent-ink: #0B1A14; --accent-soft: #173327; --prot: #7FA6FF; --warn: #E2B456; --low: #FF8A80;
+    color-scheme: dark;
+  }
+}
+* { box-sizing: border-box; }
+html { -webkit-text-size-adjust: 100%; }
+body {
+  margin: 0; background: var(--bg); color: var(--ink);
+  font-family: var(--font-body); font-size: 16px; line-height: 1.45;
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+}
+body::before {
+  content: ""; position: fixed; inset: 0 0 auto; height: env(safe-area-inset-top, 0px);
+  z-index: 10; background: var(--surface);
+}
+.wrap {
+  max-width: 720px; margin: 0 auto;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+}
+h1, h2, h3 { font-family: var(--font-display); font-weight: 700; margin: 0; text-wrap: balance; }
+button, input, select, textarea { font: inherit; color: inherit; }
+button { cursor: pointer; -webkit-tap-highlight-color: transparent; }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+[hidden] { display: none !important; }
+.num { font-variant-numeric: tabular-nums; }
+
+.top {
+  position: sticky; top: env(safe-area-inset-top, 0px); z-index: 5;
+  background: var(--surface); border-bottom: 1px solid var(--line);
+}
+.top .wrap { padding-block: 6px 0; display: grid; }
+.brand { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+.brand h1 { font-size: 1.25rem; text-transform: uppercase; letter-spacing: 0.03em; }
+.today { color: var(--muted); font-size: 0.85rem; font-variant-numeric: tabular-nums; }
+.tabs { display: flex; gap: 4px; margin-left: -7px; }
+.tab {
+  border: 0; background: none; padding: 6px 7px 8px; border-bottom: 3px solid transparent;
+  min-height: 44px; font-family: var(--font-display); font-size: 1rem; font-weight: 700;
+  text-transform: uppercase; letter-spacing: 0.02em; color: var(--muted);
+}
+.tab[aria-current="page"] { border-bottom-color: var(--accent); color: var(--accent); }
+
+main { padding-block: 10px 120px; display: grid; gap: 8px; }
+.banner { background: var(--chip); color: var(--low); border-radius: 10px; padding: 10px 12px; font-weight: 600; }
+.toast { display: flex; justify-content: space-between; align-items: center; gap: 12px; background: var(--chip); border-radius: 10px; padding: 6px 6px 6px 12px; font-size: 0.92rem; }
+.toast button, .linkbtn { border: 0; background: none; color: var(--accent); font-weight: 700; font-size: 0.92rem; min-height: 40px; padding: 0 8px; }
+.linkbtn { padding: 0; font-weight: 600; min-height: 32px; }
+
+/* Nawigacja dnia / tygodnia */
+.dnav { display: grid; grid-template-columns: 44px 1fr 44px; align-items: center; gap: 8px; }
+.navb { height: 44px; border-radius: 10px; border: 1px solid var(--line); background: var(--surface); font-size: 1.5rem; line-height: 1; }
+.dt { text-align: center; display: grid; justify-items: center; }
+.dt b { font-family: var(--font-display); font-size: 1.3rem; text-transform: uppercase; letter-spacing: 0.03em; line-height: 1.2; }
+.dt span { color: var(--muted); font-size: 0.82rem; min-height: 32px; display: flex; align-items: center; }
+.dtype { display: flex; align-items: center; justify-content: space-between; gap: 10px; font-size: 0.88rem; color: var(--muted); font-weight: 600; }
+.dtype select, .sel {
+  -webkit-appearance: none; appearance: none; min-height: 40px; padding: 6px 30px 6px 12px; border: 1px solid var(--line); border-radius: 10px;
+  background: var(--surface) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M1 1l4 4 4-4' fill='none' stroke='%23888' stroke-width='1.6'/%3E%3C/svg%3E") no-repeat right 11px center;
+  color: var(--ink); font-size: 16px; font-weight: 600; max-width: 70%;
+}
+
+/* Podsumowanie dnia */
+.sum { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); padding: 12px; display: grid; gap: 6px; }
+.sum .big { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; flex-wrap: wrap; color: var(--muted); font-variant-numeric: tabular-nums; }
+.sum .big b { font-family: var(--font-display); font-size: 2rem; line-height: 1; color: var(--ink); }
+.sum .big.sm { font-size: 0.9rem; margin-top: 4px; }
+.sum .big.sm b { font-family: var(--font-body); font-size: 1rem; }
+.over { color: var(--warn); font-style: normal; font-weight: 700; }
+.bar { display: block; height: 8px; background: var(--chip); border-radius: 4px; overflow: hidden; }
+.bar i { display: block; height: 100%; background: var(--accent); border-radius: 4px; }
+.bar.pr i { background: var(--prot); }
+.bar i.over { background: var(--warn); }
+.plan { display: flex; justify-content: space-between; align-items: center; gap: 8px 12px; flex-wrap: wrap; font-size: 0.86rem; color: var(--muted); border-top: 1px solid var(--line); padding-top: 4px; margin-top: 2px; }
+
+/* Posiłki dnia */
+.slot { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); padding: 4px 12px 6px; }
+.slot-h { display: flex; align-items: center; gap: 8px; min-height: 44px; }
+.slot-h h3 { flex: 1; min-width: 0; font-size: 1.15rem; text-transform: uppercase; letter-spacing: 0.03em; display: flex; align-items: baseline; gap: 8px; }
+.tm { font-family: var(--font-body); font-size: 0.78rem; color: var(--muted); font-weight: 600; letter-spacing: 0; font-variant-numeric: tabular-nums; }
+.sk { color: var(--muted); font-size: 0.85rem; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.addb { flex: none; width: 36px; height: 36px; border-radius: 999px; border: 1px solid var(--line); background: var(--bg); font-size: 1.35rem; line-height: 1; color: var(--accent); font-weight: 600; }
+.it { display: grid; grid-template-columns: 40px minmax(0, 1fr); align-items: center; border-top: 1px solid var(--line); }
+.it.new { animation: flash 1.6s ease-out; }
+@keyframes flash { from { background: var(--accent-soft); } to { background: transparent; } }
+@media (prefers-reduced-motion: reduce) { .it.new { animation: none; } }
+.chk { width: 40px; height: 44px; border: 0; background: none; display: grid; place-items: center start; padding: 0; }
+.chk span {
+  width: 26px; height: 26px; border-radius: 999px; border: 2px solid var(--muted); display: grid; place-items: center;
+  color: transparent; font-weight: 800; font-size: 0.85rem; line-height: 1;
+}
+.it.ok .chk span { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
+.it-main { border: 0; background: none; text-align: left; padding: 8px 0; display: flex; justify-content: space-between; gap: 10px; align-items: center; min-height: 48px; width: 100%; }
+.nm { min-width: 0; line-height: 1.3; }
+.it:not(.ok) .nm { color: var(--muted); }
+.mc { flex: none; font-size: 0.82rem; color: var(--muted); font-variant-numeric: tabular-nums; text-align: right; line-height: 1.3; }
+.it.ok .mc b { color: var(--ink); }
+.vr { font-style: normal; font-size: 0.68rem; font-weight: 700; padding: 1px 5px; border-radius: 5px; background: var(--chip); color: var(--muted); margin-left: 5px; vertical-align: 1px; letter-spacing: 0.02em; white-space: nowrap; }
+.vr.L { background: var(--accent-soft); color: var(--accent); }
+.more { grid-column: 1 / -1; padding: 0 0 10px 40px; display: grid; gap: 8px; }
+.more p { margin: 0; font-size: 0.9rem; color: var(--muted); }
+.more .mx { color: var(--ink); font-variant-numeric: tabular-nums; }
+.ctl { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.qty { display: flex; align-items: center; gap: 4px; }
+.step { width: 40px; height: 40px; border-radius: 10px; border: 1px solid var(--line); background: var(--bg); font-size: 1.3rem; font-weight: 600; line-height: 1; }
+.qty output { min-width: 4.2ch; text-align: center; font-weight: 700; font-variant-numeric: tabular-nums; }
+.seg { display: inline-flex; border: 1px solid var(--line); border-radius: 10px; overflow: hidden; }
+.seg button { border: 0; background: none; height: 40px; padding: 0 12px; font-weight: 700; font-size: 0.82rem; color: var(--muted); }
+.seg button[aria-pressed="true"] { background: var(--accent); color: var(--accent-ink); }
+.rm { border: 1px solid var(--line); background: none; color: var(--low); border-radius: 10px; height: 40px; padding: 0 12px; font-weight: 600; margin-left: auto; }
+.emptyb { display: block; border: 0; border-top: 1px solid var(--line); background: none; color: var(--accent); font-weight: 600; min-height: 44px; padding: 0; width: 100%; text-align: left; }
+
+/* Tydzień */
+.wd { width: 100%; text-align: left; display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 4px 10px; background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 10px 12px; }
+.wd.today { border-color: var(--accent); }
+.wd .n { font-weight: 700; }
+.wd .n small, .wd .v small { font-weight: 400; color: var(--muted); font-size: 0.82rem; }
+.wd .n small { margin-left: 6px; }
+.wd .v { text-align: right; font-variant-numeric: tabular-nums; font-weight: 700; }
+.wd .bar { grid-column: 1 / -1; }
+.wd .pb { grid-column: 1 / -1; font-size: 0.8rem; color: var(--muted); font-variant-numeric: tabular-nums; }
+.wsum { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); padding: 12px; display: grid; gap: 4px; font-variant-numeric: tabular-nums; }
+.wsum h3 { font-size: 1.1rem; text-transform: uppercase; letter-spacing: 0.03em; margin-bottom: 2px; }
+.wsum p { margin: 0; color: var(--muted); font-size: 0.92rem; }
+.wsum p b { color: var(--ink); }
+
+/* Produkty */
+.addex { width: 100%; min-height: 48px; border: 1.5px dashed var(--line); border-radius: var(--radius); background: none; color: var(--accent); font-weight: 700; }
+.pcat { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); overflow: hidden; }
+.pcat h3 { padding: 10px 12px 6px; font-size: 1.1rem; text-transform: uppercase; letter-spacing: 0.03em; }
+.pcat h3 span { font-family: var(--font-body); font-size: 0.8rem; color: var(--muted); font-weight: 600; margin-left: 4px; }
+.prow, .pk-one { width: 100%; text-align: left; display: flex; justify-content: space-between; align-items: center; gap: 10px; border: 0; border-top: 1px solid var(--line); background: none; min-height: 52px; }
+.prow { padding: 8px 12px; }
+.pk-nm { flex: 1; min-width: 0; font-weight: 600; line-height: 1.3; }
+.pk-nm small { display: block; font-weight: 400; color: var(--muted); font-size: 0.8rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pk-k { flex: none; text-align: right; font-weight: 700; font-variant-numeric: tabular-nums; line-height: 1.25; }
+.pk-k small { display: block; font-weight: 400; color: var(--muted); font-size: 0.78rem; }
+.rmlist { display: grid; gap: 6px; }
+.rmlist div { display: flex; justify-content: space-between; align-items: center; gap: 10px; }
+.hint { margin: 0; color: var(--muted); font-size: 0.85rem; }
+
+/* Ustawienia */
+.settings { border: 1px solid var(--line); border-radius: var(--radius); padding: 10px 14px; background: var(--surface); margin-top: 6px; }
+.settings summary { cursor: pointer; font-weight: 600; min-height: 36px; display: flex; align-items: center; }
+.settings .body { display: grid; gap: 10px; padding: 8px 0 4px; font-size: 0.95rem; }
+.settings .body p { margin: 0; color: var(--muted); }
+.tg { display: grid; grid-template-columns: minmax(0, 1fr) repeat(3, 4.6rem); gap: 6px; align-items: center; font-size: 0.85rem; }
+.tg .h { color: var(--muted); font-weight: 600; text-align: center; font-size: 0.78rem; }
+.tg input { width: 100%; min-height: 40px; border: 1px solid var(--line); border-radius: 8px; background: var(--bg); text-align: center; font-size: 16px; font-variant-numeric: tabular-nums; padding: 0 4px; }
+.btnrow { display: flex; flex-wrap: wrap; gap: 8px; }
+.btn2 { border: 1px solid var(--line); background: var(--bg); border-radius: 10px; padding: 0 14px; height: 44px; font-weight: 600; }
+.xlink { color: var(--accent); font-weight: 600; }
+
+/* Okna: wybór jedzenia i edytor produktu */
+dialog.sheet, dialog.ed {
+  width: min(560px, calc(100vw - 20px)); margin: auto; padding: 0;
+  border: 1px solid var(--line); border-radius: 16px; background: var(--surface); color: var(--ink);
+}
+dialog.sheet { height: calc(100vh - 40px); height: calc(100dvh - 40px); max-height: 780px; overflow: hidden; }
+dialog.sheet[open] { display: flex; flex-direction: column; }
+dialog.ed { max-height: calc(100vh - 20px); max-height: calc(100dvh - 20px); overflow: auto; }
+dialog::backdrop { background: rgba(0, 0, 0, 0.5); }
+.sh-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 12px 12px 8px 16px; }
+.sh-head h2, .ed h2 { font-size: 1.3rem; text-transform: uppercase; letter-spacing: 0.03em; }
+.sh-head h2:focus, .ed h2:focus { outline: none; }
+.xbtn { flex: none; width: 40px; height: 40px; border-radius: 999px; border: 1px solid var(--line); background: var(--bg); font-size: 1rem; }
+.pk-search { padding: 0 16px 6px; }
+.pk-search input, .fld input, .fld select, .fld textarea {
+  width: 100%; min-height: 44px; padding: 8px 10px; border: 1px solid var(--line); border-radius: 10px;
+  background: var(--bg); color: var(--ink); font-family: inherit; font-size: 16px; font-weight: 400;
+}
+#pk-list { flex: 1; overflow: auto; padding: 0 16px 8px; -webkit-overflow-scrolling: touch; overscroll-behavior: contain; }
+.pk-cat { font-size: 0.95rem; text-transform: uppercase; letter-spacing: 0.04em; color: var(--muted); margin: 14px 0 2px; }
+.pk { display: flex; align-items: center; justify-content: space-between; gap: 10px; border-top: 1px solid var(--line); padding: 6px 0; min-height: 56px; }
+.pk-one { padding: 6px 0; min-height: 56px; }
+.pk-v { display: flex; gap: 6px; flex: none; }
+.pk-v button {
+  border: 1px solid var(--line); background: var(--bg); border-radius: 10px; padding: 4px 6px; min-width: 62px; min-height: 46px;
+  font-size: 0.7rem; font-weight: 700; color: var(--muted); line-height: 1.15; letter-spacing: 0.02em;
+}
+.pk-v button span { display: block; font-size: 0.98rem; color: var(--ink); font-variant-numeric: tabular-nums; letter-spacing: 0; }
+.pk-v button.def { border-color: var(--accent); color: var(--accent); }
+.pk-empty { color: var(--muted); margin: 14px 0; }
+.own { border-top: 1px solid var(--line); padding: 4px 16px 14px; max-height: 60%; overflow: auto; }
+.own summary { font-weight: 700; color: var(--accent); min-height: 44px; display: flex; align-items: center; cursor: pointer; }
+.own .body { display: grid; gap: 8px; }
+.ed form { display: grid; gap: 12px; padding: 16px 16px 0; }
+.fld { display: grid; gap: 4px; font-size: 0.8rem; font-weight: 600; color: var(--muted); min-width: 0; }
+.fld select {
+  -webkit-appearance: none; appearance: none; padding-right: 26px;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M1 1l4 4 4-4' fill='none' stroke='%23888' stroke-width='1.6'/%3E%3C/svg%3E");
+  background-repeat: no-repeat; background-position: right 10px center;
+}
+.fld textarea { resize: vertical; line-height: 1.4; }
+.fld input:focus, .fld select:focus, .fld textarea:focus, .pk-search input:focus, .tg input:focus { outline: 2px solid var(--accent); outline-offset: 0; }
+.row4 { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; }
+.chkl { display: flex; align-items: center; gap: 10px; min-height: 44px; font-weight: 600; }
+.chkl input { width: 22px; height: 22px; accent-color: var(--accent); }
+.lbox { display: grid; gap: 10px; border-left: 3px solid var(--accent-soft); padding-left: 10px; }
+.msg { font-size: 0.88rem; margin: 0; }
+.msg:empty { display: none; }
+.msg.err { color: var(--low); font-weight: 600; }
+.ed-actions {
+  position: sticky; bottom: 0; display: flex; flex-wrap: wrap; gap: 8px; align-items: center;
+  padding: 12px 0 16px; background: var(--surface); border-top: 1px solid var(--line);
+}
+.ed-actions .sp { flex: 1; }
+.save { height: 44px; border: 0; border-radius: 10px; padding: 0 16px; background: var(--accent); color: var(--accent-ink); font-weight: 700; }
+.btn-del { border: 1px solid var(--low); background: none; color: var(--low); border-radius: 10px; padding: 0 12px; height: 44px; font-weight: 600; }
+.btn-del.armed { background: var(--low); color: var(--surface); }
+</style>
+</head>
+<body>
+<header class="top">
+  <div class="wrap">
+    <div class="brand"><h1>Jedzenie</h1><span class="today" id="today"></span></div>
+    <nav class="tabs" id="tabs" aria-label="Widok"></nav>
+  </div>
+</header>
+<main class="wrap" id="main"></main>
+
+<dialog class="sheet" id="pick" aria-labelledby="pk-h">
+  <div class="sh-head"><h2 id="pk-h" tabindex="-1" autofocus>Dodaj</h2><button type="button" class="xbtn" data-act="pk-close" aria-label="Zamknij">✕</button></div>
+  <div class="pk-search"><input id="pk-q" type="search" placeholder="Szukaj (np. omlet, banan)…" autocomplete="off" aria-label="Szukaj jedzenia"></div>
+  <div id="pk-list"></div>
+  <details class="own" id="pk-own">
+    <summary>+ Własna pozycja</summary>
+    <form class="body" id="own-form" novalidate>
+      <label class="fld">Nazwa<input id="ow-n" maxlength="80" autocomplete="off"></label>
+      <div class="row4">
+        <label class="fld">kcal<input id="ow-k" inputmode="decimal" autocomplete="off"></label>
+        <label class="fld">B (g)<input id="ow-b" inputmode="decimal" autocomplete="off"></label>
+        <label class="fld">T (g)<input id="ow-t" inputmode="decimal" autocomplete="off"></label>
+        <label class="fld">W (g)<input id="ow-w" inputmode="decimal" autocomplete="off"></label>
+      </div>
+      <label class="chkl"><input type="checkbox" id="ow-save" checked> Zapamiętaj na liście („Moje”)</label>
+      <p class="msg err" id="ow-err" aria-live="polite"></p>
+      <button type="submit" class="save">Dodaj</button>
+    </form>
+  </details>
+</dialog>
+
+<dialog class="ed" id="fed" aria-labelledby="fed-h">
+  <form id="fed-form" novalidate>
+    <h2 id="fed-h" tabindex="-1" autofocus>Edytuj</h2>
+    <label class="fld">Nazwa<input name="n" maxlength="80" autocomplete="off"></label>
+    <label class="fld">Kategoria<select name="c"></select></label>
+    <div class="row4">
+      <label class="fld">kcal<input name="k" inputmode="decimal" autocomplete="off"></label>
+      <label class="fld">B (g)<input name="b" inputmode="decimal" autocomplete="off"></label>
+      <label class="fld">T (g)<input name="t" inputmode="decimal" autocomplete="off"></label>
+      <label class="fld">W (g)<input name="w" inputmode="decimal" autocomplete="off"></label>
+    </div>
+    <label class="fld">Skład / opis<textarea name="d" rows="3" maxlength="600"></textarea></label>
+    <label class="chkl"><input type="checkbox" name="hasL"> Ma wersję LIGHT</label>
+    <div class="lbox" id="fed-L">
+      <div class="row4">
+        <label class="fld">kcal<input name="Lk" inputmode="decimal" autocomplete="off"></label>
+        <label class="fld">B (g)<input name="Lb" inputmode="decimal" autocomplete="off"></label>
+        <label class="fld">T (g)<input name="Lt" inputmode="decimal" autocomplete="off"></label>
+        <label class="fld">W (g)<input name="Lw" inputmode="decimal" autocomplete="off"></label>
+      </div>
+      <label class="fld">Co inaczej w LIGHT<textarea name="Ld" rows="2" maxlength="300"></textarea></label>
+    </div>
+    <p class="msg err" id="fed-err" aria-live="polite"></p>
+    <div class="ed-actions">
+      <button type="button" class="btn-del" data-act="fed-del">Usuń</button>
+      <button type="button" class="btn2" data-act="fed-base">Wartości z planu</button>
+      <span class="sp"></span>
+      <button type="button" class="btn2" data-act="fed-cancel">Anuluj</button>
+      <button type="submit" class="save">Zapisz</button>
+    </div>
+  </form>
+</dialog>
+<input type="file" id="import-file" accept="application/json,.json" hidden>
+
+<script>
+(() => {
+'use strict';
+
+/* ---------- Plan (z „Plan - żywienia wt-pt”, 05.11.2026) ---------- */
+// To plan bazowy. Zmiany z zakładki „Produkty” (S.foods) zapisują się w telefonie i nakładają na niego — patrz buildFoods().
+// k = kcal, b / t / w = białko / tłuszcz / węglowodany w gramach, d = skład. L = wersja LIGHT (kolacje).
+const CATS = [
+  ['rano', 'Rano'], ['sniad', 'Śniadania'], ['przek', 'Przekąski'], ['jog', 'Posiłek 14:00'], ['obiad', 'Obiady'],
+  ['kol', 'Kolacje'], ['post', 'Dzień postu'], ['slodkie', 'Słodkie'], ['prod', 'Produkty'], ['moje', 'Moje'],
+];
+const CATM = Object.fromEntries(CATS);
+const BASE_FOODS = [
+  { id: 'S1', c: 'rano', n: 'Shake potreningowy', k: 200, b: 22, t: 1, w: 29, d: '20 g odżywki białkowej, 5 g kolagenu, 5 g kreatyny, banan 120 g, 300 ml wody' },
+  { id: 'S2', c: 'rano', n: 'Shake bez banana', k: 95, b: 20, t: 1, w: 1, d: 'Gdy banan był o 6:30 — 20 g odżywki, 5 g kolagenu, 5 g kreatyny, 300 ml wody' },
+
+  { id: 'SN1', c: 'sniad', n: 'Śniadanie z planu', k: 515, b: 22, t: 28, w: 44, d: '1 jajko, 3 kromki pieczywa chrupkiego (30 g), hummus 40 g, pestki dyni 10 g, pomidor 120 g, ogórek 80 g, awokado 40 g, kawa z mlekiem 150 ml' },
+  { id: 'SN2', c: 'sniad', n: 'Jajko, chleb żytni, twaróg', k: 470, b: 31, t: 16, w: 47, d: 'Weekend (szacunkowo): 1 jajko, 2 kromki chleba żytniego (80 g), 100 g twarogu półtłustego, warzywa 200 g, 5 g oliwy' },
+  { id: 'SN3', c: 'sniad', n: 'Jajko, chleb żytni, łosoś', k: 445, b: 26, t: 18, w: 44, d: 'Weekend (szacunkowo): 1 jajko, 2 kromki chleba żytniego (80 g), 60 g wędzonego łososia, warzywa 200 g, 5 g oliwy' },
+
+  { id: 'PR1', c: 'przek', n: 'Przekąska z planu', k: 370, b: 12, t: 16, w: 48, d: '2 kromki pieczywa chrupkiego (20 g), masło orzechowe 20 g, jabłko 180 g, kawa z mlekiem 150 ml' },
+
+  { id: 'JG1', c: 'jog', n: 'Jogurt z owsem, owocami i nasionami', k: 500, b: 23, t: 24, w: 43, d: 'Jogurt 3% 200 g, płatki owsiane 40 g, truskawki / maliny 100 g, orzechy włoskie 15 g, chia 7 g, siemię 7 g, błonnik aroniowy 4 g, babka płesznik 3 g, cynamon' },
+
+  { id: 'OB1', c: 'obiad', n: 'Obiad — dzień siłowy', k: 635, b: 39, t: 18, w: 78, d: '120 g mięsa lub ryby, 400 g ziemniaków / batatów (lub 90 g ryżu / kaszy), 200 g warzyw, 15 g oliwy' },
+  { id: 'OB2', c: 'obiad', n: 'Obiad — dzień biegowy', k: 750, b: 42, t: 18, w: 104, d: '120 g mięsa lub ryby, 550 g ziemniaków / batatów (lub 120 g ryżu / kaszy), 200 g warzyw, 15 g oliwy' },
+  { id: 'OB3', c: 'obiad', n: 'Obiad z rybą tłustą', k: 650, b: 36, t: 22, w: 78, d: '120 g łososia / makreli / śledzia / sardynek, 400 g ziemniaków, 200 g warzyw, 5 g oliwy' },
+
+  { id: 'K1', c: 'kol', n: '1. Kanapki żytnie z indykiem', k: 560, b: 31, t: 20, w: 61, d: '3 kromki chleba żytniego (120 g), 70 g pieczonego indyka, 25 g sera Edam, pomidor, rukola, cebula, 10 g oliwy',
+    L: { k: 465, b: 33, t: 7, w: 64, d: 'bez oliwy i sera, indyk 100 g, 20 g hummusu' } },
+  { id: 'K2', c: 'kol', n: '2. Omlet', k: 600, b: 32, t: 29, w: 51, d: '3 jajka, 20 g sera Edam, szpinak, pomidor, 100 g chleba żytniego, 7 g oliwy',
+    L: { k: 495, b: 31, t: 17, w: 51, d: '2 jajka + 2 białka, ser 10 g, oliwa 3 g' } },
+  { id: 'K3', c: 'kol', n: '3. Tortilla', k: 635, b: 39, t: 24, w: 64, d: 'Wrap pełnoziarnisty 70 g, 90 g kurczaka, 20 g sera Edam, 30 g ryżu, 100 g warzyw, sos z 50 g jogurtu, 10 g oliwy',
+    L: { k: 500, b: 38, t: 9, w: 64, d: 'bez oliwy i sera, kurczak 110 g' } },
+  { id: 'K4', c: 'kol', n: '4. Gofry proteinowe', k: 730, b: 39, t: 27, w: 84, d: '1 jajko, 15 g odżywki, 50 g mąki owsianej + 50 g pszennej, 150 ml mleka, 10 g oliwy, 50 g jogurtu + 100 g truskawek',
+    L: { k: 595, b: 36, t: 19, w: 71, d: 'mąka 40 + 40 g, oliwa 3 g' } },
+  { id: 'K5', c: 'kol', n: '5. Kaiserschmarrn', k: 685, b: 38, t: 28, w: 69, d: '2 jajka, 15 g odżywki, 40 g mąki owsianej + 30 g pszennej, 120 ml mleka, 10 g oliwy, 100 g jabłka + 50 g malin',
+    L: { k: 570, b: 35, t: 16, w: 69, d: '1 jajko + 1 białko, oliwa 3 g' } },
+  { id: 'K6', c: 'kol', n: '6. Brownie twarogowe z air fryera', k: 665, b: 42, t: 22, w: 73, d: '1 jajko, 10 g odżywki, 70 g twarogu półtłustego, 60 g mąki owsianej, 100 g banana, 10 g kakao, 15 g masła orzechowego, 100 g truskawek',
+    L: { k: 565, b: 42, t: 12, w: 72, d: 'twaróg chudy 80 g, bez masła orzechowego' } },
+  { id: 'K7', c: 'kol', n: '7. Pancakes proteinowe', k: 665, b: 38, t: 27, w: 63, d: '1 jajko, 15 g odżywki, 35 g mąki owsianej + 35 g pszennej, 100 ml mleka, 7 g oliwy, 80 g jogurtu + 100 g malin + 10 g masła orzechowego',
+    L: { k: 560, b: 36, t: 17, w: 61, d: '2 g oliwy, bez masła orzechowego' } },
+  { id: 'K8', c: 'kol', n: '8. Pasta z wędzonej makreli', k: 585, b: 32, t: 21, w: 64, d: '3 kromki chleba żytniego (120 g), 60 g makreli + 50 g twarogu półtłustego + 30 g jogurtu, pomidor, ogórek, 5 g oliwy',
+    L: { k: 505, b: 35, t: 11, w: 65, d: 'makrela 40 g + twaróg chudy 80 g, bez oliwy' } },
+  { id: 'K9', c: 'kol', n: '9. Szakszuka z ciecierzycą', k: 705, b: 35, t: 29, w: 72, d: '10 g oliwy, cebula, papryka, 200 g passaty, 100 g ciecierzycy, 3 jajka, 80 g chleba żytniego',
+    L: { k: 605, b: 35, t: 17, w: 72, d: '2 jajka + 2 białka, oliwa 3 g' } },
+  { id: 'K10', c: 'kol', n: '10. Twarożek ze szczypiorkiem + jajko', k: 610, b: 40, t: 19, w: 66, d: '120 g twarogu półtłustego + 50 g jogurtu, 1 jajko, 3 kromki chleba żytniego (120 g), pomidor, ogórek, 5 g oliwy',
+    L: { k: 525, b: 41, t: 9, w: 66, d: 'twaróg chudy, bez oliwy' } },
+  { id: 'K11', c: 'kol', n: '11. Sałatka nicejska z tuńczykiem', k: 570, b: 39, t: 21, w: 54, d: '100 g tuńczyka, 250 g ziemniaków, 100 g fasolki, 1 jajko, pomidor, cebula, sos z 15 g oliwy',
+    L: { k: 500, b: 41, t: 12, w: 56, d: 'sos z 5 g oliwy + 30 g jogurtu' } },
+  { id: 'K12', c: 'kol', n: '12. Leniwe owsiane z musem truskawkowym', k: 575, b: 41, t: 18, w: 62, d: 'Porcja leniwych, 80 g jogurtu, 150 g truskawek na mus, 10 g masła orzechowego, 10 g miodu, cynamon',
+    L: { k: 485, b: 38, t: 13, w: 53, d: 'bez masła orzechowego i miodu' } },
+  { id: 'K13', c: 'kol', n: '13. Ryż smażony z jajkiem i kurczakiem', k: 620, b: 38, t: 22, w: 66, d: '70 g ryżu, 70 g kurczaka, 150 g mrożonych warzyw, 10 g oliwy, 2 jajka, sos sojowy, imbir',
+    L: { k: 535, b: 40, t: 11, w: 66, d: '1 jajko + 1 białko, kurczak 90 g, oliwa 4 g' } },
+  { id: 'K14', c: 'kol', n: '14. Makaron z indykiem w pomidorach', k: 580, b: 36, t: 18, w: 64, d: '70 g makaronu pełnoziarnistego, ⅓ sosu (indyk, oliwa, cebula, marchew, passata), 10 g parmezanu',
+    L: { k: 480, b: 32, t: 8, w: 64, d: 'oliwa 10 g na cały sos, bez parmezanu' } },
+  { id: 'K15', c: 'kol', n: '15. Brownie z mikrofali w kubku', k: 665, b: 40, t: 24, w: 66, d: '1 jajko, 15 g odżywki, 50 g zmielonych płatków owsianych, 10 g kakao, 80 g banana, 60 ml mleka, 15 g masła orzechowego, 100 g jogurtu + 100 g malin',
+    L: { k: 575, b: 37, t: 16, w: 64, d: 'bez masła orzechowego' } },
+
+  { id: 'PO1', c: 'post', n: 'Przerwanie postu', k: 810, b: 55, t: 14, w: 117, d: 'Shake 20 g odżywki + banan, po 15 min 120 g kurczaka / ryby, 100 g ryżu, 200 g warzyw, 10 g oliwy' },
+  { id: 'PO2', c: 'post', n: 'Kolacja w dzień postu', k: 600, b: 27, t: 30, w: 54, d: 'Jogurt 200 g, płatki 50 g, truskawki 150 g, orzechy włoskie 15 g, chia 7 g, siemię 7 g, masło orzechowe 10 g' },
+
+  { id: 'D1', c: 'slodkie', n: 'Lody truskawkowe (porcja)', k: 200, b: 15, t: 7, w: 21, d: '¼ przepisu: truskawki, jogurt, mleko, odżywka, banan, masło orzechowe' },
+  { id: 'D2', c: 'slodkie', n: 'Lody na szybko', k: 150, b: 13, t: 4, w: 17, d: '150 g mrożonych truskawek, 100 g jogurtu, 10 g odżywki' },
+  { id: 'D3', c: 'slodkie', n: 'Ciasto z cukierni (kawałek)', k: 350, b: 6, t: 18, w: 42, d: 'Szacunkowo — popraw, jeśli znasz kalorie' },
+
+  { id: 'P1', c: 'prod', n: 'Banan 120 g', k: 107, b: 1.3, t: 0.4, w: 27, d: '' },
+  { id: 'P2', c: 'prod', n: 'Jabłko 180 g', k: 94, b: 0.5, t: 0.3, w: 25, d: '' },
+  { id: 'P3', c: 'prod', n: 'Kawa z mlekiem 150 ml', k: 90, b: 4.8, t: 4.8, w: 7, d: 'Mleko 3,2%' },
+  { id: 'P4', c: 'prod', n: 'Jajko', k: 70, b: 6.3, t: 4.9, w: 0.3, d: '1 szt. (50 g)' },
+  { id: 'P5', c: 'prod', n: 'Chleb żytni, 1 kromka', k: 90, b: 2.4, t: 0.6, w: 18, d: '40 g, na zakwasie' },
+  { id: 'P6', c: 'prod', n: 'Pieczywo chrupkie, 1 kromka', k: 36, b: 1, t: 0.2, w: 7, d: '10 g' },
+  { id: 'P7', c: 'prod', n: 'Masło orzechowe 10 g', k: 61, b: 2.5, t: 5, w: 1.5, d: '' },
+  { id: 'P8', c: 'prod', n: 'Ryż 30 g (suchy)', k: 104, b: 2.1, t: 0.2, w: 23, d: '' },
+  { id: 'P9', c: 'prod', n: 'Ziemniaki 130 g', k: 100, b: 2.5, t: 0.1, w: 22, d: '' },
+  { id: 'P10', c: 'prod', n: 'Jogurt naturalny 3% 100 g', k: 70, b: 6, t: 3, w: 5, d: '' },
+  { id: 'P11', c: 'prod', n: 'Odżywka białkowa 20 g', k: 76, b: 15.8, t: 1, w: 1, d: '79% białka' },
+  { id: 'P12', c: 'prod', n: 'Oliwa 10 g', k: 88, b: 0, t: 10, w: 0, d: '1 łyżka' },
+  { id: 'P13', c: 'prod', n: 'Orzechy włoskie 15 g', k: 98, b: 2.3, t: 9.8, w: 2.1, d: '12 połówek' },
+];
+const BASEM = Object.fromEntries(BASE_FOODS.map(f => [f.id, f]));
+
+// Posiłki dnia (kolejność na ekranie). c = kategoria, od której zaczyna się lista „Dodaj”
+const SLOTS = {
+  rano:   { t: '08:15', n: 'Rano', c: 'rano' },
+  sniad:  { t: '10:00', n: 'Śniadanie', c: 'sniad' },
+  przek:  { t: '12:00', n: 'Przekąska', c: 'przek' },
+  jog:    { t: '14:00', n: 'Posiłek 14:00', c: 'jog' },
+  post14: { t: '14:00', n: 'Przerwanie postu', c: 'post' },
+  obiad:  { t: '16:00', n: 'Obiad', c: 'obiad' },
+  kol:    { t: '19:00', n: 'Kolacja', c: 'kol' },
+  dod:    { t: '', n: 'Dodatkowo', c: 'prod' },
+};
+const SLOT_ORDER = Object.keys(SLOTS);
+// Rodzaj dnia: kcal / b = cel, burn = wydatek (Garmin, tydzień ~17 150), v = domyślna wersja kolacji, slots = posiłki i co jest w planie
+const TYPES = {
+  sil:  { n: 'Siłowy', kcal: 2755, b: 153, burn: 2400, v: 'L', slots: { rano: ['S1'], sniad: ['SN1'], przek: ['PR1'], jog: ['JG1'], obiad: ['OB1'], kol: [], dod: [] } },
+  bieg: { n: 'Biegowy', kcal: 2870, b: 156, burn: 2700, v: 'L', slots: { rano: ['S1'], sniad: ['SN1'], przek: ['PR1'], jog: ['JG1'], obiad: ['OB2'], kol: [], dod: [] } },
+  post: { n: 'Post', kcal: 1415, b: 81, burn: 2400, v: 'P', slots: { post14: ['PO1'], kol: ['PO2'], dod: [] } },
+  sob:  { n: 'Wolny', kcal: 2600, b: 145, burn: 2150, v: 'L', slots: { sniad: [], przek: [], jog: ['JG1'], obiad: [], kol: [], dod: [] } },
+  nd:   { n: 'Niedziela z biegiem', kcal: 3100, b: 150, burn: 2700, v: 'P', slots: { rano: [], sniad: [], przek: [], jog: ['JG1'], obiad: ['OB2'], kol: [], dod: [] } },
+};
+const DEF_TYPE = ['nd', 'post', 'sil', 'bieg', 'sil', 'sil', 'sob']; // według getDay(): nd, pon, wt…
+const TG_FIELDS = [['kcal', 'kcal'], ['b', 'białko'], ['burn', 'wydatek']];
+
+/* ---------- Pomocnicze ---------- */
+const $ = (s, el = document) => el.querySelector(s);
+const esc = s => String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const pad = n => String(n).padStart(2, '0');
+const iso = d => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+const parseD = s => new Date(s + 'T00:00:00');
+const addD = (s, n) => { const d = parseD(s); d.setDate(d.getDate() + n); return iso(d); };
+const diffD = (a, b) => Math.round((parseD(b) - parseD(a)) / 86400000);
+const todayISO = () => iso(new Date());
+const DN = ['Niedziela', 'Poniedziałek', 'Wtorek', 'Środa', 'Czwartek', 'Piątek', 'Sobota'];
+const DS = ['Nd', 'Pon', 'Wt', 'Śr', 'Czw', 'Pt', 'Sob'];
+const dm = s => { const [, m, d] = s.split('-'); return `${d}.${m}`; };
+const k0 = n => Math.round(n).toLocaleString('pl-PL');
+const g0 = n => Math.round(n);
+const d1 = n => n == null || n === '' ? '' : String(Math.round(n * 10) / 10).replace('.', ',');
+const num = s => { const t = String(s).trim().replace(',', '.'); if (!/^\d+(\.\d+)?$/.test(t)) return null; return parseFloat(t); };
+const fq = q => '×' + String(q).replace('.', ',');
+const norm = s => String(s).toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/ł/g, 'l');
+const macroTxt = x => `${k0(x.k)} kcal · ${g0(x.b)} B · ${g0(x.t)} T · ${g0(x.w)} W`;
+const newId = () => 'e' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+const showDlg = el => { if (el.showModal) el.showModal(); else el.setAttribute('open', ''); };
+const closeDlg = el => { if (el.close) el.close(); else el.removeAttribute('open'); };
+
+/* ---------- Stan — tylko w tym telefonie ---------- */
+// days[data] = { type, items: [{ id, s: posiłek, f: id jedzenia, v: 'L'|'P', n, k, b, t, w, q: porcje, ok: zjedzone, p: z planu }] }
+// Każdy wpis pamięta kalorie z chwili dodania — późniejsza zmiana produktu nie przelicza minionych dni.
+const KEY = 'jedzenie-dziennik-v1';
+const normFoods = p => ({ edits: (p && p.edits) || {}, added: (p && p.added) || [], removed: (p && p.removed) || [] });
+const S = { days: {}, foods: normFoods(), settings: { targets: {} }, view: 'dzien', date: todayISO(), follow: true, week: null, open: {}, toast: null, flashId: null, setOpen: false, banner: '' };
+try {
+  const raw = localStorage.getItem(KEY);
+  if (raw) { const o = JSON.parse(raw); S.days = o.days || {}; S.foods = normFoods(o.foods); S.settings = o.settings || {}; }
+} catch (e) { S.banner = 'Ta przeglądarka blokuje zapis. Otwórz stronę w Safari (nie w trybie prywatnym).'; }
+if (!S.settings.targets) S.settings.targets = {};
+const dump = () => JSON.stringify({ v: 1, days: S.days, foods: S.foods, settings: S.settings });
+let saveT = null;
+function persist() {
+  clearTimeout(saveT);
+  saveT = setTimeout(() => {
+    saveT = null;
+    try { localStorage.setItem(KEY, dump()); }
+    catch (e) { S.banner = 'Nie udało się zapisać danych na telefonie.'; render(true); }
+  }, 250);
+}
+window.addEventListener('pagehide', () => { if (saveT) { clearTimeout(saveT); saveT = null; try { localStorage.setItem(KEY, dump()); } catch (e) { /* nic */ } } });
+try { if (navigator.storage && navigator.storage.persist) navigator.storage.persist(); } catch (e) { /* opcjonalne */ }
+
+let FOODS = [], FM = {};
+function buildFoods() {
+  const rm = new Set(S.foods.removed);
+  FOODS = BASE_FOODS.filter(f => !rm.has(f.id)).map(f => ({ ...f, ...(S.foods.edits[f.id] || {}) }))
+    .concat(S.foods.added.filter(f => !rm.has(f.id)).map(f => ({ ...f })))
+    .map(f => { if (!f.L) delete f.L; if (!CATM[f.c]) f.c = 'moje'; return f; });
+  FM = Object.fromEntries(FOODS.map(f => [f.id, f]));
+}
+buildFoods();
+
+/* ---------- Model dnia ---------- */
+const T = type => ({ ...TYPES[type], ...(S.settings.targets[type] || {}) });
+const defType = date => DEF_TYPE[parseD(date).getDay()];
+function snap(f, v) {
+  const x = f.L && v === 'L' ? f.L : f;
+  const o = { f: f.id, n: f.n, k: x.k, b: x.b, t: x.t, w: x.w };
+  if (f.L) o.v = v === 'L' ? 'L' : 'P';
+  return o;
+}
+function template(type) {
+  const ty = TYPES[type], out = [];
+  let i = 0;
+  for (const s of SLOT_ORDER) for (const id of (ty.slots[s] || [])) {
+    if (FM[id]) out.push({ id: 't' + i++, s, ...snap(FM[id], ty.v), q: 1, ok: false, p: true });
+  }
+  return out;
+}
+// Dzień bez żadnej zmiany nie jest zapisywany — pokazuje plan; zapis powstaje przy pierwszym stuknięciu
+function dayOf(date) {
+  const d = S.days[date];
+  if (d && !TYPES[d.type]) d.type = defType(date);
+  return d || { type: defType(date), items: template(defType(date)), virtual: true };
+}
+function mat(date) {
+  if (!S.days[date]) S.days[date] = { type: defType(date), items: template(defType(date)) };
+  return S.days[date];
+}
+const sumOf = items => items.reduce((a, e) => {
+  const q = e.q || 1;
+  a.k += e.k * q; a.b += e.b * q; a.t += e.t * q; a.w += e.w * q;
+  return a;
+}, { k: 0, b: 0, t: 0, w: 0 });
+const eatenOf = d => sumOf(d.items.filter(e => e.ok));
+function setType(date, type) {
+  const d = mat(date);
+  d.type = type;
+  d.items = d.items.filter(e => !(e.p && !e.ok)); // niezjedzone pozycje starego planu znikają
+  for (const e of template(type)) if (!d.items.some(x => x.s === e.s && x.f === e.f)) d.items.push({ ...e, id: newId() });
+}
+const findE = (d, id) => d.items.find(e => e.id === id);
+// Najczęściej jedzone w danym posiłku (ostatnie 90 dni, wpis sprzed 2 tygodni waży połowę)
+function slotUsage(slot) {
+  const sc = {}, today = todayISO();
+  for (const [date, d] of Object.entries(S.days)) {
+    const age = diffD(date, today);
+    if (age < 0 || age > 90) continue;
+    const wgt = Math.pow(0.5, age / 14);
+    for (const e of d.items) if (e.ok && e.f && e.s === slot) sc[e.f] = (sc[e.f] || 0) + wgt;
+  }
+  return sc;
+}
+
+/* ---------- Widok ---------- */
+const VIEWS = [['dzien', 'Dzień'], ['tydzien', 'Tydzień'], ['produkty', 'Produkty']];
+function currentView() { const h = location.hash.slice(1); return VIEWS.some(v => v[0] === h) ? h : 'dzien'; }
+function renderHeader() {
+  const d = new Date();
+  $('#today').textContent = `${DN[d.getDay()]} ${pad(d.getDate())}.${pad(d.getMonth() + 1)}`;
+  $('#tabs').innerHTML = VIEWS.map(([id, n]) => `<button type="button" class="tab" data-go="${id}" ${S.view === id ? 'aria-current="page"' : ''}>${n}</button>`).join('');
+}
+function render(keepScroll) {
+  S.view = currentView();
+  if (S.follow) S.date = todayISO();
+  renderHeader();
+  let h = `<div class="banner" ${S.banner ? '' : 'hidden'}>${esc(S.banner)}</div>`;
+  if (S.toast && S.toast.view === S.view) h += `<div class="toast" role="status"><span>${esc(S.toast.text)}</span><button type="button" data-act="undo">Cofnij</button></div>`;
+  else S.toast = null;
+  h += S.view === 'tydzien' ? weekHTML() : S.view === 'produkty' ? prodHTML() : dayHTML();
+  $('#main').innerHTML = h;
+  S.flashId = null;
+  if (!keepScroll) window.scrollTo(0, 0);
+}
+const pct = (a, b) => b > 0 ? Math.max(0, Math.min(100, a / b * 100)) : 0;
+
+function dayHTML() {
+  const date = S.date, d = dayOf(date), ty = T(d.type), today = todayISO();
+  const eaten = eatenOf(d), all = sumOf(d.items);
+  const rel = date === today ? 'dziś' : date === addD(today, -1) ? 'wczoraj' : date === addD(today, 1) ? 'jutro' : '';
+  let h = `<div class="dnav"><button type="button" class="navb" data-day="-1" aria-label="Poprzedni dzień">‹</button>` +
+    `<div class="dt"><b>${DN[parseD(date).getDay()]} ${dm(date)}</b><span>${rel ? rel : ''}${date !== today ? `${rel ? ' · ' : ''}<button type="button" class="linkbtn" data-act="today">wróć do dziś</button>` : ''}</span></div>` +
+    `<button type="button" class="navb" data-day="1" aria-label="Następny dzień">›</button></div>`;
+  h += `<div class="dtype"><label for="dtype">Rodzaj dnia</label><select id="dtype">` +
+    Object.keys(TYPES).map(k => `<option value="${k}" ${k === d.type ? 'selected' : ''}>${esc(TYPES[k].n)} · ${k0(T(k).kcal)}</option>`).join('') + `</select></div>`;
+  const left = ty.kcal - eaten.k;
+  const pending = d.items.some(e => !e.ok);
+  h += `<section class="sum" aria-label="Podsumowanie dnia">` +
+    `<div class="big"><span><b>${k0(eaten.k)}</b> / ${k0(ty.kcal)} kcal</span><span>${left >= 0 ? 'zostało ' + k0(left) : `<em class="over">+${k0(-left)} ponad cel</em>`}</span></div>` +
+    `<div class="bar"><i class="${eaten.k > ty.kcal * 1.05 ? 'over' : ''}" style="width:${pct(eaten.k, ty.kcal)}%"></i></div>` +
+    `<div class="big sm"><span>Białko <b>${g0(eaten.b)}</b> / ${g0(ty.b)} g</span><span>T ${g0(eaten.t)} g · W ${g0(eaten.w)} g</span></div>` +
+    `<div class="bar pr"><i style="width:${pct(eaten.b, ty.b)}%"></i></div>` +
+    (pending ? `<div class="plan"><span>Z resztą planu: ~${k0(all.k)} kcal · ${g0(all.b)} B</span><button type="button" class="linkbtn" data-act="allok">✓ Wszystko zjedzone</button></div>` : '') +
+    `</section>`;
+  const slots = SLOT_ORDER.filter(s => s in TYPES[d.type].slots || d.items.some(e => e.s === s));
+  for (const s of slots) {
+    const its = d.items.filter(e => e.s === s), sl = SLOTS[s];
+    const se = sumOf(its.filter(e => e.ok));
+    h += `<section class="slot" aria-label="${esc(sl.n)}"><div class="slot-h"><h3>${sl.t ? `<span class="tm">${sl.t}</span>` : ''}${esc(sl.n)}</h3>` +
+      `<span class="sk">${se.k ? k0(se.k) + ' kcal' : ''}</span>` +
+      `<button type="button" class="addb" data-add="${s}" aria-label="Dodaj: ${esc(sl.n)}">+</button></div>`;
+    for (const e of its) h += itemHTML(e);
+    if (!its.length) h += `<button type="button" class="emptyb" data-add="${s}">${s === 'kol' ? 'Wybierz kolację' : '+ Dodaj'}</button>`;
+    h += `</section>`;
+  }
+  return h + settingsHTML();
+}
+function itemHTML(e) {
+  const f = e.f ? FM[e.f] : null, open = !!S.open[e.id], q = e.q || 1;
+  let h = `<div class="it${e.ok ? ' ok' : ''}${e.id === S.flashId ? ' new' : ''}">` +
+    `<button type="button" class="chk" data-chk="${e.id}" aria-pressed="${e.ok}" aria-label="${e.ok ? 'Zjedzone' : 'Odhacz jako zjedzone'}: ${esc(e.n)}"><span>✓</span></button>` +
+    `<button type="button" class="it-main" data-open="${e.id}" aria-expanded="${open}"><span class="nm">${esc(e.n)}` +
+    (e.v ? `<i class="vr ${e.v}">${e.v === 'L' ? 'LIGHT' : 'PEŁNA'}</i>` : '') + (q !== 1 ? `<i class="vr">${fq(q)}</i>` : '') + `</span>` +
+    `<span class="mc"><b>${k0(e.k * q)}</b> kcal<br>${g0(e.b * q)} B</span></button>`;
+  if (open) {
+    const ld = f && f.L && e.v === 'L' && f.L.d ? f.L.d : '';
+    h += `<div class="more">` + (f && f.d ? `<p>${esc(f.d)}</p>` : '') + (ld ? `<p><b>LIGHT:</b> ${esc(ld)}</p>` : '') +
+      `<p class="mx">${macroTxt({ k: e.k * q, b: e.b * q, t: e.t * q, w: e.w * q })}</p>` +
+      `<div class="ctl"><div class="qty"><button type="button" class="step" data-qty="${e.id}" data-dir="-1" aria-label="Mniej o pół porcji">−</button>` +
+      `<output aria-label="Porcje">${fq(q)}</output><button type="button" class="step" data-qty="${e.id}" data-dir="1" aria-label="Więcej o pół porcji">+</button></div>` +
+      (f && f.L ? `<div class="seg" role="group" aria-label="Wersja"><button type="button" data-var="${e.id}" data-v="L" aria-pressed="${e.v === 'L'}">LIGHT</button><button type="button" data-var="${e.id}" data-v="P" aria-pressed="${e.v !== 'L'}">PEŁNA</button></div>` : '') +
+      `<button type="button" class="rm" data-rm="${e.id}">Usuń</button></div></div>`;
+  }
+  return h + `</div>`;
+}
+
+function weekStart(date) { const wd = (parseD(date).getDay() + 6) % 7; return addD(date, -wd); }
+function weekHTML() {
+  const today = todayISO();
+  const ws = S.week || weekStart(today);
+  S.week = ws;
+  let h = `<div class="dnav"><button type="button" class="navb" data-week="-1" aria-label="Poprzedni tydzień">‹</button>` +
+    `<div class="dt"><b>${dm(ws)} – ${dm(addD(ws, 6))}</b><span>${ws === weekStart(today) ? 'ten tydzień' : `<button type="button" class="linkbtn" data-act="thisweek">wróć do tego tygodnia</button>`}</span></div>` +
+    `<button type="button" class="navb" data-week="1" aria-label="Następny tydzień">›</button></div>`;
+  const tot = { k: 0, b: 0 };
+  let burn = 0, n = 0, goalW = 0, burnW = 0;
+  for (let i = 0; i < 7; i++) {
+    const date = addD(ws, i), d = dayOf(date), ty = T(d.type), e = eatenOf(d), has = d.items.some(x => x.ok);
+    goalW += ty.kcal; burnW += ty.burn;
+    if (has && date < today) { n++; tot.k += e.k; tot.b += e.b; burn += ty.burn; } // bilans tylko z zakończonych dni
+    h += `<button type="button" class="wd${date === today ? ' today' : ''}" data-goday="${date}">` +
+      `<span class="n">${DS[parseD(date).getDay()]} ${dm(date)}<small>${esc(TYPES[d.type].n)}</small></span>` +
+      `<span class="v">${has ? k0(e.k) : '—'} <small>/ ${k0(ty.kcal)}</small></span>` +
+      `<span class="bar"><i class="${e.k > ty.kcal * 1.05 ? 'over' : ''}" style="width:${pct(e.k, ty.kcal)}%"></i></span>` +
+      `<span class="pb">${has ? `Białko ${g0(e.b)} / ${g0(ty.b)} g · T ${g0(e.t)} · W ${g0(e.w)}` : 'brak wpisów'}</span></button>`;
+  }
+  const sign = x => (x > 0 ? '+' : x < 0 ? '−' : '') + k0(Math.abs(x));
+  h += `<section class="wsum"><h3>Podsumowanie</h3>` +
+    (n ? `<p>Zakończone dni z wpisami: ${n} · zjedzone <b>${k0(tot.k)} kcal</b> · średnio <b>${k0(tot.k / n)}</b> kcal i <b>${g0(tot.b / n)} g</b> białka</p>` +
+      `<p>Bilans z wydatkiem (Garmin): <b>${sign(tot.k - burn)} kcal</b> · ${sign((tot.k - burn) / n)} na dzień</p>`
+      : `<p>Bilans pojawi się po pierwszym zakończonym dniu z wpisami.</p>`) +
+    `<p>Plan tygodnia: ${k0(goalW)} kcal przy wydatku ~${k0(burnW)} → ${sign((goalW - burnW) / 7)} na dzień</p></section>`;
+  return h;
+}
+
+function prodHTML() {
+  let h = `<button type="button" class="addex" data-act="fnew">+ Dodaj produkt lub posiłek</button>`;
+  for (const [c, cn] of CATS) {
+    const list = FOODS.filter(f => f.c === c);
+    if (!list.length) continue;
+    h += `<section class="pcat"><h3>${esc(cn)}<span>${list.length}</span></h3>` + list.map(f =>
+      `<button type="button" class="prow" data-fedit="${f.id}"><span class="pk-nm">${esc(f.n)}${S.foods.edits[f.id] ? '<i class="vr">zmienione</i>' : ''}<small>${esc(f.d || '')}</small></span>` +
+      `<span class="pk-k">${k0(f.k)}<small>${f.L ? 'LIGHT ' + k0(f.L.k) : g0(f.b) + ' B'}</small></span></button>`).join('') + `</section>`;
+  }
+  const rm = S.foods.removed.map(id => S.foods.added.find(a => a.id === id) || (BASEM[id] && { ...BASEM[id], ...(S.foods.edits[id] || {}) })).filter(Boolean);
+  if (rm.length) {
+    h += `<section class="settings"><div class="body"><p><b>Usunięte</b> — możesz je przywrócić:</p><div class="rmlist">` +
+      rm.map(f => `<div><span>${esc(f.n)}</span><button type="button" class="btn2" data-frestore="${f.id}">Przywróć</button></div>`).join('') + `</div></div></section>`;
+  }
+  return h + `<p class="hint">Zmiana kalorii produktu nie przelicza minionych dni — każdy wpis pamięta wartości z chwili dodania.</p>`;
+}
+
+function settingsHTML() {
+  return `<details class="settings" id="settings" ${S.setOpen ? 'open' : ''}><summary>Cele dnia, kopia zapasowa</summary><div class="body">` +
+    `<p>Cel jedzenia, białko i wydatek (Garmin) dla każdego rodzaju dnia. Domyślnie z planu: tydzień ~18 250 kcal przy wydatku ~17 150 (nadwyżka ~+155 na dzień).</p>` +
+    `<div class="tg"><span></span>${TG_FIELDS.map(([, l]) => `<span class="h">${l}</span>`).join('')}` +
+    Object.keys(TYPES).map(k => `<span>${esc(TYPES[k].n)}</span>` + TG_FIELDS.map(([f, l]) =>
+      `<input inputmode="numeric" autocomplete="off" data-tg="${k}" data-f="${f}" value="${T(k)[f]}" aria-label="${esc(TYPES[k].n)}: ${l}">`).join('')).join('') + `</div>` +
+    `<div class="btnrow"><button type="button" class="btn2" data-act="tgreset">Cele z planu</button></div>` +
+    `<p>Dane zapisują się tylko w tym telefonie. Co kilka tygodni zrób kopię i zachowaj ją w Plikach / iCloud.</p>` +
+    `<div class="btnrow"><button type="button" class="btn2" data-act="export">Zapisz kopię</button><button type="button" class="btn2" data-act="import">Wczytaj kopię</button></div>` +
+    `<p id="io-msg"></p>` +
+    `<p><a class="xlink" href="../">Dziennik siłowni →</a></p>` +
+    `</div></details>`;
+}
+
+/* ---------- Akcje dnia ---------- */
+function change(fn) { const d = mat(S.date); fn(d); persist(); render(true); }
+function goDate(date) { S.date = date; S.follow = date === todayISO(); S.open = {}; S.toast = null; render(); }
+
+/* ---------- Wybór jedzenia ---------- */
+const PK = { slot: null };
+function openPicker(slot) {
+  PK.slot = slot;
+  $('#pk-h').textContent = 'Dodaj · ' + SLOTS[slot].n;
+  $('#pk-q').value = '';
+  $('#pk-own').open = false;
+  for (const k of ['n', 'k', 'b', 't', 'w']) $('#ow-' + k).value = '';
+  $('#ow-err').textContent = '';
+  pickList();
+  showDlg($('#pick'));
+  $('#pk-list').scrollTop = 0;
+}
+function pickRow(f, dv) {
+  if (f.L) {
+    return `<div class="pk"><div class="pk-nm">${esc(f.n)}<small>${esc(f.d || '')}</small></div><div class="pk-v">` +
+      `<button type="button" data-pick="${f.id}" data-v="L" class="${dv === 'L' ? 'def' : ''}" aria-label="${esc(f.n)} — LIGHT ${k0(f.L.k)} kcal">LIGHT<span>${k0(f.L.k)}</span></button>` +
+      `<button type="button" data-pick="${f.id}" data-v="P" class="${dv === 'P' ? 'def' : ''}" aria-label="${esc(f.n)} — PEŁNA ${k0(f.k)} kcal">PEŁNA<span>${k0(f.k)}</span></button></div></div>`;
+  }
+  return `<button type="button" class="pk-one" data-pick="${f.id}"><span class="pk-nm">${esc(f.n)}<small>${esc(f.d || '')}</small></span>` +
+    `<span class="pk-k">${k0(f.k)}<small>kcal · ${g0(f.b)} B</small></span></button>`;
+}
+function pickList() {
+  const q = norm($('#pk-q').value.trim());
+  const cat = SLOTS[PK.slot].c, dv = T(dayOf(S.date).type).v;
+  let h = '';
+  if (q) {
+    const hits = FOODS.filter(f => norm(f.n + ' ' + (f.d || '')).includes(q));
+    h = hits.length ? hits.map(f => pickRow(f, dv)).join('') : `<p class="pk-empty">Nic nie znaleziono — dodaj własną pozycję poniżej.</p>`;
+  } else {
+    const sc = slotUsage(PK.slot);
+    const top = FOODS.filter(f => sc[f.id]).sort((a, b) => sc[b.id] - sc[a.id]).slice(0, 5);
+    if (top.length) h += `<h3 class="pk-cat">Najczęściej tutaj</h3>` + top.map(f => pickRow(f, dv)).join('');
+    for (const c of [cat, ...CATS.map(x => x[0]).filter(x => x !== cat)]) {
+      const list = FOODS.filter(f => f.c === c && !top.includes(f));
+      if (list.length) h += `<h3 class="pk-cat">${esc(CATM[c])}</h3>` + list.map(f => pickRow(f, dv)).join('');
+    }
+  }
+  $('#pk-list').innerHTML = h;
+}
+function addEntry(e) {
+  const d = mat(S.date);
+  e.id = newId(); e.s = PK.slot; e.q = 1; e.ok = true;
+  d.items.push(e);
+  S.flashId = e.id;
+  persist(); closeDlg($('#pick')); render(true);
+}
+function addOwn() {
+  const g = k => $('#ow-' + k).value.trim();
+  const bad = (k, t) => { $('#ow-err').textContent = t; $('#ow-' + k).focus(); };
+  const n = g('n'), k = num(g('k'));
+  if (!n) return bad('n', 'Wpisz nazwę.');
+  if (k == null || k > 5000) return bad('k', 'Wpisz kalorie (liczba).');
+  const m = {};
+  for (const x of ['b', 't', 'w']) {
+    const v = g(x) === '' ? 0 : num(g(x));
+    if (v == null || v > 500) return bad(x, 'Makro w gramach — liczba albo puste.');
+    m[x] = v;
+  }
+  if ($('#ow-save').checked) {
+    const f = { id: 'U' + Date.now().toString(36), c: 'moje', n, k, ...m, d: '' };
+    S.foods.added.push(f);
+    buildFoods();
+    addEntry(snap(FM[f.id]));
+  } else addEntry({ n, k, ...m });
+}
+
+/* ---------- Edytor produktu ---------- */
+const FE = { id: null };
+const fform = $('#fed-form');
+const FF = n => fform.elements[n];
+FF('c').innerHTML = CATS.map(([id, n]) => `<option value="${id}">${esc(n)}</option>`).join('');
+function lboxSync() { $('#fed-L').hidden = !FF('hasL').checked; }
+function fillFood(f) {
+  FF('n').value = f.n || ''; FF('c').value = f.c || 'moje'; FF('d').value = f.d || '';
+  for (const x of ['k', 'b', 't', 'w']) { FF(x).value = d1(f[x]); FF('L' + x).value = f.L ? d1(f.L[x]) : ''; }
+  FF('Ld').value = f.L ? f.L.d || '' : '';
+  FF('hasL').checked = !!f.L;
+  lboxSync();
+}
+function openFood(id) {
+  FE.id = id;
+  fillFood(id ? FM[id] : { n: '', c: 'moje', d: '' });
+  $('#fed-h').textContent = id ? 'Edytuj' : 'Nowy produkt';
+  $('#fed-err').textContent = '';
+  const del = $('[data-act="fed-del"]', fform);
+  del.hidden = !id; delete del.dataset.armed; del.classList.remove('armed'); del.textContent = 'Usuń';
+  $('[data-act="fed-base"]', fform).hidden = !(id && BASEM[id] && S.foods.edits[id]);
+  showDlg($('#fed'));
+  $('#fed').scrollTop = 0;
+  if (!id) setTimeout(() => FF('n').focus(), 50);
+}
+function readFood() {
+  const g = k => FF(k).value.trim();
+  const bad = (k, t) => { $('#fed-err').textContent = t; FF(k).focus(); return null; };
+  const v = { n: g('n'), c: g('c'), d: g('d') };
+  if (!v.n) return bad('n', 'Wpisz nazwę.');
+  const nums = (pre, o) => {
+    for (const x of ['k', 'b', 't', 'w']) {
+      const raw = g(pre + x), val = raw === '' && x !== 'k' ? 0 : num(raw);
+      if (val == null || val > (x === 'k' ? 5000 : 500)) return bad(pre + x, x === 'k' ? 'Wpisz kalorie (liczba).' : 'Makro w gramach — liczba albo puste.');
+      o[x] = val;
+    }
+    return o;
+  };
+  if (!nums('', v)) return null;
+  if (FF('hasL').checked) {
+    const L = nums('L', {});
+    if (!L) return null;
+    L.d = g('Ld');
+    v.L = L;
+  } else v.L = null;
+  return v;
+}
+const same = (a, b) => JSON.stringify(a == null ? null : a) === JSON.stringify(b == null ? null : b);
+function saveFood() {
+  const v = readFood();
+  if (!v) return;
+  const id = FE.id;
+  if (id && BASEM[id]) {
+    const b = BASEM[id], d = {};
+    for (const k of ['n', 'c', 'k', 'b', 't', 'w', 'd', 'L']) if (!same(v[k], b[k])) d[k] = v[k];
+    if (Object.keys(d).length) S.foods.edits[id] = d; else delete S.foods.edits[id];
+  } else if (id) {
+    const a = S.foods.added.find(x => x.id === id);
+    Object.assign(a, v);
+    if (!v.L) delete a.L;
+  } else {
+    const f = { id: 'U' + Date.now().toString(36), ...v };
+    if (!v.L) delete f.L;
+    S.foods.added.push(f);
+  }
+  buildFoods(); persist(); closeDlg($('#fed')); render(true);
+}
+function removeFood(id) {
+  const f = FM[id];
+  if (!S.foods.removed.includes(id)) S.foods.removed.push(id);
+  buildFoods(); persist(); closeDlg($('#fed'));
+  S.toast = { view: 'produkty', text: `Usunięto „${f ? f.n : ''}”.`, undo: () => restoreFood(id) };
+  render(true);
+}
+function restoreFood(id) { S.foods.removed = S.foods.removed.filter(x => x !== id); buildFoods(); persist(); render(true); }
+
+/* ---------- Kopia zapasowa ---------- */
+async function exportData() {
+  const msg = $('#io-msg');
+  const json = JSON.stringify({ app: 'jedzenie-dziennik', v: 1, saved: new Date().toISOString(), days: S.days, foods: S.foods, settings: S.settings }, null, 1);
+  const name = `jedzenie-kopia-${todayISO()}.json`;
+  try {
+    const file = new File([json], name, { type: 'application/json' });
+    if (navigator.canShare && navigator.canShare({ files: [file] })) {
+      await navigator.share({ files: [file], title: 'Kopia — Jedzenie' });
+      msg.textContent = 'Kopia przekazana. Wybierz „Zachowaj w Plikach”, żeby trzymać ją w iCloud.';
+      return;
+    }
+  } catch (e) { if (e && e.name === 'AbortError') { msg.textContent = 'Anulowano.'; return; } }
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([json], { type: 'application/json' }));
+  a.download = name; document.body.appendChild(a); a.click();
+  setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 1000);
+  msg.textContent = `Zapisano plik ${name}.`;
+}
+function importData(file) {
+  const fr = new FileReader();
+  fr.onload = () => {
+    try {
+      const o = JSON.parse(fr.result);
+      if (!o || o.app !== 'jedzenie-dziennik' || typeof o.days !== 'object') throw new Error('format');
+      S.days = o.days; S.foods = normFoods(o.foods); S.settings = o.settings || {};
+      if (!S.settings.targets) S.settings.targets = {};
+      buildFoods(); persist(); S.setOpen = true; render(true);
+      $('#io-msg').textContent = `Wczytano kopię z ${String(o.saved || '').slice(0, 10)}.`;
+    } catch (e) { $('#io-msg').textContent = 'To nie jest plik kopii z tej aplikacji.'; }
+  };
+  fr.onerror = () => { $('#io-msg').textContent = 'Nie udało się odczytać pliku.'; };
+  fr.readAsText(file);
+}
+
+/* ---------- Zdarzenia ---------- */
+document.addEventListener('click', ev => {
+  const t = ev.target.closest('button');
+  if (!t) return;
+  const ds = t.dataset;
+  if (ds.go) { if (currentView() === ds.go) render(); else location.hash = ds.go; return; }
+  if (ds.day) { goDate(addD(S.date, Number(ds.day))); return; }
+  if (ds.goday) { S.date = ds.goday; S.follow = ds.goday === todayISO(); S.open = {}; location.hash = 'dzien'; return; }
+  if (ds.week) { S.week = addD(S.week, 7 * Number(ds.week)); render(true); return; }
+  if (ds.chk) { change(d => { const e = findE(d, ds.chk); if (e) { e.ok = !e.ok; e.p = false; } }); return; }
+  if (ds.open) { S.open[ds.open] = !S.open[ds.open]; render(true); return; }
+  if (ds.qty) { change(d => { const e = findE(d, ds.qty); if (e) { e.q = Math.min(5, Math.max(0.5, (e.q || 1) + 0.5 * Number(ds.dir))); e.p = false; } }); return; }
+  if (ds.var) {
+    change(d => {
+      const e = findE(d, ds.var), f = e && FM[e.f];
+      if (f) Object.assign(e, snap(f, ds.v), { p: false });
+    });
+    return;
+  }
+  if (ds.rm) {
+    const date = S.date;
+    change(d => {
+      const i = d.items.findIndex(e => e.id === ds.rm);
+      if (i < 0) return;
+      const [e] = d.items.splice(i, 1);
+      S.toast = { view: 'dzien', text: `Usunięto „${e.n}”.`, undo: () => { const dd = mat(date); dd.items.splice(Math.min(i, dd.items.length), 0, e); persist(); render(true); } };
+    });
+    return;
+  }
+  if (ds.add) { openPicker(ds.add); return; }
+  if (ds.pick) {
+    const f = FM[ds.pick];
+    if (f) addEntry(snap(f, ds.v));
+    return;
+  }
+  if (ds.fedit) { openFood(ds.fedit); return; }
+  if (ds.frestore) { restoreFood(ds.frestore); return; }
+  switch (ds.act) {
+    case 'today': goDate(todayISO()); return;
+    case 'thisweek': S.week = null; render(true); return;
+    case 'allok': change(d => d.items.forEach(e => { e.ok = true; e.p = false; })); return;
+    case 'undo': { const u = S.toast && S.toast.undo; S.toast = null; if (u) u(); return; }
+    case 'pk-close': closeDlg($('#pick')); return;
+    case 'fnew': openFood(null); return;
+    case 'fed-cancel': closeDlg($('#fed')); return;
+    case 'fed-base': fillFood({ ...BASEM[FE.id] }); $('#fed-err').textContent = 'Wpisane wartości z planu — zatwierdź „Zapisz”.'; return;
+    case 'fed-del':
+      if (!ds.armed) { ds.armed = '1'; t.textContent = 'Na pewno usunąć?'; t.classList.add('armed'); return; }
+      removeFood(FE.id); return;
+    case 'tgreset': S.settings.targets = {}; persist(); render(true); return;
+    case 'export': exportData(); return;
+    case 'import': $('#import-file').click(); return;
+  }
+});
+document.addEventListener('change', ev => {
+  const t = ev.target;
+  if (t.id === 'dtype') { setType(S.date, t.value); persist(); render(true); return; }
+  if (t.dataset && t.dataset.tg) { render(true); return; }
+  if (t.name === 'hasL') { lboxSync(); return; }
+});
+document.addEventListener('input', ev => {
+  const t = ev.target;
+  if (t.id === 'pk-q') { pickList(); $('#pk-list').scrollTop = 0; return; }
+  if (t.dataset && t.dataset.tg) {
+    const v = parseInt(t.value, 10);
+    if (!(v > 0 && v < 20000)) return;
+    const k = t.dataset.tg;
+    S.settings.targets[k] = { ...(S.settings.targets[k] || {}), [t.dataset.f]: v };
+    persist();
+  }
+});
+document.addEventListener('toggle', ev => { if (ev.target.id === 'settings') S.setOpen = ev.target.open; }, true);
+$('#own-form').addEventListener('submit', ev => { ev.preventDefault(); addOwn(); });
+fform.addEventListener('submit', ev => { ev.preventDefault(); saveFood(); });
+$('#import-file').addEventListener('change', ev => { const f = ev.target.files && ev.target.files[0]; if (f) importData(f); ev.target.value = ''; });
+window.addEventListener('hashchange', () => render());
+// Po północy (aplikacja otwarta w tle) — przejdź na nowy dzień
+document.addEventListener('visibilitychange', () => { if (!document.hidden && S.follow && S.date !== todayISO()) render(); });
+
+/* ---------- Start ---------- */
+render();
+if ('serviceWorker' in navigator && location.protocol === 'https:') {
+  window.addEventListener('load', () => { navigator.serviceWorker.register('sw.js').catch(() => {}); });
+}
+})();
+</script>
+</body>
+</html>

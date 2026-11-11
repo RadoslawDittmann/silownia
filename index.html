@@ -226,6 +226,7 @@ details.more summary { cursor: pointer; color: var(--muted); font-size: 0.88rem;
 .cue { margin: 4px 0 8px; font-size: 0.95rem; max-width: 62ch; }
 .links { display: flex; flex-wrap: wrap; gap: 8px 16px; align-items: center; }
 .links a { color: var(--accent); font-weight: 600; font-size: 0.92rem; }
+.xlink { color: var(--accent); font-weight: 600; }
 
 .settings { border: 1px solid var(--line); border-radius: var(--radius); padding: 10px 14px; background: var(--surface); }
 .settings summary { cursor: pointer; font-weight: 600; min-height: 36px; display: flex; align-items: center; }
@@ -690,6 +691,7 @@ function settingsHTML() {
     `<p>Progresja podwójna: gdy wszystkie serie dojdą do górnej granicy, aplikacja podpowie nowy ciężar (duże boje dolne +5 kg, górne +2,5 kg, hantle i izolacje +1–2 kg). W ćwiczeniach z masą ciała zamiast ciężaru podnosisz cel (sekundy lub powtórzenia).</p>` +
     `<p>Kolejność: u góry ćwiczenia robione najczęściej i ostatnio (liczy się przy wejściu na zakładkę). Te bez zapisu od 6 tygodni są zwinięte w „Pozostałe” na dole — wystarczy jeden zapis, żeby wróciły na listę.</p>` +
     `<p>Ćwiczenia zmieniasz przez „Edytuj ćwiczenie” w „Historia i technika”, nowe dodajesz przyciskiem „+ Dodaj ćwiczenie”. Zmiany są w kopii zapasowej.</p>` +
+    `<p><a class="xlink" href="jedzenie/">Dziennik jedzenia →</a></p>` +
     (rm.length ? `<p><b>Usunięte ćwiczenia</b> — historia zostaje, możesz je przywrócić:</p><div class="rmlist">` +
       rm.map(e => `<div><span>${esc(e.pl)} · ${esc(PARTM[e.part] ? PARTM[e.part].tab || PARTM[e.part].name : '')}</span><button type="button" class="btn2" data-restore="${e.id}">Przywróć</button></div>`).join('') + `</div>` : '') +
     `</div></details>`;
