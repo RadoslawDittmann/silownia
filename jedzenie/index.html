@@ -74,7 +74,7 @@ button { cursor: pointer; -webkit-tap-highlight-color: transparent; }
 .today { color: var(--muted); font-size: 0.85rem; font-variant-numeric: tabular-nums; }
 .tabs { display: flex; gap: 4px; margin-left: -7px; }
 .tab {
-  border: 0; background: none; padding: 6px 7px 8px; border-bottom: 3px solid transparent;
+  border: 0; background: none; padding: 6px 6px 8px; border-bottom: 3px solid transparent;
   min-height: 44px; font-family: var(--font-display); font-size: 1rem; font-weight: 700;
   text-transform: uppercase; letter-spacing: 0.02em; color: var(--muted);
 }
@@ -172,6 +172,17 @@ main { padding-block: 10px 120px; display: grid; gap: 8px; }
 .wsum h3 { font-size: 1.1rem; text-transform: uppercase; letter-spacing: 0.03em; margin-bottom: 2px; }
 .wsum p { margin: 0; color: var(--muted); font-size: 0.92rem; }
 .wsum p b { color: var(--ink); }
+.wsum h3:not(:first-child) { margin-top: 8px; }
+.wsum .sub { font-size: 0.82rem; }
+.wsum small { color: var(--muted); font-size: 0.8rem; }
+.mt { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; font-size: 0.88rem; margin: 2px 0; }
+.mt th, .mt td { padding: 6px 2px 6px 6px; border-top: 1px solid var(--line); text-align: right; white-space: nowrap; }
+.mt th:first-child { padding-left: 0; }
+.mt thead th { border-top: 0; color: var(--muted); font-weight: 600; font-size: 0.75rem; padding-bottom: 2px; }
+.mt tbody th { text-align: left; font-weight: 600; }
+.mt tbody td:nth-child(2) { font-weight: 700; }
+.burn { display: flex; justify-content: space-between; align-items: center; gap: 8px 12px; flex-wrap: wrap; font-size: 0.92rem; }
+.burn small { display: block; }
 
 /* Produkty */
 .addex { width: 100%; min-height: 48px; border: 1.5px dashed var(--line); border-radius: var(--radius); background: none; color: var(--accent); font-weight: 700; }
@@ -739,13 +750,13 @@ const SLOTS = {
   dod:    { t: '', n: 'Dodatkowo', cs: ['ciasta', 'cukierki', 'czekolada', 'lody', 'slodkie', 'owoce', 'napoje', 'miasto', 'dania', 'nabial'] },
 };
 const SLOT_ORDER = Object.keys(SLOTS);
-// Rodzaj dnia: kcal / b = cel, burn = wydatek (Garmin, tydzień ~17 150), v = domyślna wersja kolacji, slots = posiłki i co jest w planie
+// Rodzaj dnia: kcal / b / t / w = cel, burn = wydatek przewidywany (Garmin, tydzień ~17 150; dzień można poprawić wartością z zegarka — days[data].burn), v = domyślna wersja kolacji, slots = posiłki i co jest w planie
 const TYPES = {
-  sil:  { n: 'Siłowy', kcal: 2755, b: 153, burn: 2400, v: 'L', slots: { rano: ['S1'], sniad: ['SN1'], przek: ['PR1'], jog: ['JG1'], obiad: ['OB1'], kol: [], dod: [] } },
-  bieg: { n: 'Biegowy', kcal: 2870, b: 156, burn: 2700, v: 'L', slots: { rano: ['S1'], sniad: ['SN1'], przek: ['PR1'], jog: ['JG1'], obiad: ['OB2'], kol: [], dod: [] } },
-  post: { n: 'Post', kcal: 1415, b: 81, burn: 2400, v: 'P', slots: { post14: ['PO1'], kol: ['PO2'], dod: [] } },
-  sob:  { n: 'Wolny', kcal: 2600, b: 145, burn: 2150, v: 'L', slots: { sniad: [], przek: [], jog: ['JG1'], obiad: [], kol: [], dod: [] } },
-  nd:   { n: 'Niedziela z biegiem', kcal: 3100, b: 150, burn: 2700, v: 'P', slots: { rano: [], sniad: [], przek: [], jog: ['JG1'], obiad: ['OB2'], kol: [], dod: [] } },
+  sil:  { n: 'Siłowy', kcal: 2755, b: 153, t: 100, w: 306, burn: 2400, v: 'L', slots: { rano: ['S1'], sniad: ['SN1'], przek: ['PR1'], jog: ['JG1'], obiad: ['OB1'], kol: [], dod: [] } },
+  bieg: { n: 'Biegowy', kcal: 2870, b: 156, t: 100, w: 332, burn: 2700, v: 'L', slots: { rano: ['S1'], sniad: ['SN1'], przek: ['PR1'], jog: ['JG1'], obiad: ['OB2'], kol: [], dod: [] } },
+  post: { n: 'Post', kcal: 1415, b: 81, t: 44, w: 170, burn: 2400, v: 'P', slots: { post14: ['PO1'], kol: ['PO2'], dod: [] } },
+  sob:  { n: 'Wolny', kcal: 2600, b: 145, t: 95, w: 291, burn: 2150, v: 'L', slots: { sniad: [], przek: [], jog: ['JG1'], obiad: [], kol: [], dod: [] } },
+  nd:   { n: 'Niedziela z biegiem', kcal: 3100, b: 150, t: 114, w: 368, burn: 2700, v: 'P', slots: { rano: [], sniad: [], przek: [], jog: ['JG1'], obiad: ['OB2'], kol: [], dod: [] } },
 };
 const DEF_TYPE = ['nd', 'post', 'sil', 'bieg', 'sil', 'sil', 'sob']; // według getDay(): nd, pon, wt…
 const TG_FIELDS = [['kcal', 'kcal'], ['b', 'białko'], ['burn', 'wydatek']];
@@ -809,7 +820,7 @@ const closeDlg = el => { if (el.close) el.close(); else el.removeAttribute('open
 // Każdy wpis pamięta kalorie z chwili dodania — późniejsza zmiana produktu nie przelicza minionych dni.
 const KEY = 'jedzenie-dziennik-v1';
 const normFoods = p => ({ edits: (p && p.edits) || {}, added: (p && p.added) || [], removed: (p && p.removed) || [] });
-const S = { days: {}, foods: normFoods(), settings: { targets: {} }, pq: '', popen: {}, view: 'dzien', date: todayISO(), follow: true, week: null, open: {}, toast: null, flashId: null, setOpen: false, banner: '' };
+const S = { days: {}, foods: normFoods(), settings: { targets: {} }, pq: '', popen: {}, view: 'dzien', date: todayISO(), follow: true, week: null, month: null, open: {}, toast: null, flashId: null, setOpen: false, banner: '' };
 try {
   const raw = localStorage.getItem(KEY);
   if (raw) { const o = JSON.parse(raw); S.days = o.days || {}; S.foods = normFoods(o.foods); S.settings = o.settings || {}; }
@@ -893,7 +904,7 @@ function slotUsage(slot) {
 }
 
 /* ---------- Widok ---------- */
-const VIEWS = [['dzien', 'Dzień'], ['tydzien', 'Tydzień'], ['produkty', 'Produkty']];
+const VIEWS = [['dzien', 'Dzień'], ['tydzien', 'Tydzień'], ['miesiac', 'Miesiąc'], ['produkty', 'Produkty']];
 function currentView() { const h = location.hash.slice(1); return VIEWS.some(v => v[0] === h) ? h : 'dzien'; }
 function renderHeader() {
   const d = new Date();
@@ -907,12 +918,60 @@ function render(keepScroll) {
   let h = `<div class="banner" ${S.banner ? '' : 'hidden'}>${esc(S.banner)}</div>`;
   if (S.toast && S.toast.view === S.view) h += `<div class="toast" role="status"><span>${esc(S.toast.text)}</span><button type="button" data-act="undo">Cofnij</button></div>`;
   else S.toast = null;
-  h += S.view === 'tydzien' ? weekHTML() : S.view === 'produkty' ? prodHTML() : dayHTML();
+  h += S.view === 'tydzien' ? weekHTML() : S.view === 'miesiac' ? monthHTML() : S.view === 'produkty' ? prodHTML() : dayHTML();
   $('#main').innerHTML = h;
   S.flashId = null;
   if (!keepScroll) window.scrollTo(0, 0);
 }
 const pct = (a, b) => b > 0 ? Math.max(0, Math.min(100, a / b * 100)) : 0;
+const sgn = x => (Math.round(x) > 0 ? '+' : Math.round(x) < 0 ? '−' : '') + k0(Math.abs(x));
+const kgTxt = x => (x >= 0.005 ? '+' : x <= -0.005 ? '−' : '') + String(Math.abs(Math.round(x * 100) / 100)).replace('.', ',');
+const dniTxt = n => n === 1 ? 'dzień' : 'dni';
+const pctE = (kcal, all) => all > 0 ? Math.round(kcal / all * 100) : 0;
+const MN = ['Styczeń', 'Luty', 'Marzec', 'Kwiecień', 'Maj', 'Czerwiec', 'Lipiec', 'Sierpień', 'Wrzesień', 'Październik', 'Listopad', 'Grudzień'];
+// Wydatek dnia: z zegarka, jeśli wpisany, inaczej przewidywany dla rodzaju dnia
+const burnOf = d => d.burn != null ? d.burn : T(d.type).burn;
+// Zakończone dni z wpisami (bez dzisiejszego — dzień w trakcie zaniżałby średnie i bilans)
+function stats(dates) {
+  const today = todayISO(), st = { n: 0, nw: 0, k: 0, b: 0, t: 0, w: 0, burn: 0, gk: 0, gb: 0, gt: 0, gw: 0 };
+  for (const date of dates) {
+    if (date >= today) continue;
+    const d = dayOf(date);
+    if (!d.items.some(e => e.ok)) continue;
+    const e = eatenOf(d), ty = T(d.type);
+    st.n++; st.k += e.k; st.b += e.b; st.t += e.t; st.w += e.w;
+    st.burn += burnOf(d); if (d.burn != null) st.nw++;
+    st.gk += ty.kcal; st.gb += ty.b; st.gt += ty.t; st.gw += ty.w;
+  }
+  return st;
+}
+function statsHTML(st, what) {
+  if (!st.n) return `<section class="wsum"><h3>Kalorie i składniki</h3><p>Podsumowanie pojawi się po pierwszym zakończonym dniu z wpisami.</p></section>`;
+  const n = st.n, bal = st.k - st.burn;
+  const row = (name, tot, unit, goal) => `<tr><th>${name}</th><td>${k0(tot)}${unit}</td><td>${k0(tot / n)}${unit}</td><td>${k0(goal / n)}${unit}</td></tr>`;
+  return `<section class="wsum" aria-label="Kalorie i składniki"><h3>Kalorie i składniki</h3>` +
+    `<p class="sub">${what}: ${n} ${dniTxt(n)} z wpisami (bez dzisiejszego)</p>` +
+    `<table class="mt"><thead><tr><th></th><th>Razem</th><th>Śr. / dzień</th><th>Cel / dzień</th></tr></thead><tbody>` +
+    row('kcal', st.k, '', st.gk) + row('Białko', st.b, ' g', st.gb) + row('Tłuszcz', st.t, ' g', st.gt) + row('Węglowodany', st.w, ' g', st.gw) +
+    `</tbody></table>` +
+    `<p class="sub">Energia z: białka ${pctE(st.b * 4, st.k)}% · tłuszczu ${pctE(st.t * 9, st.k)}% · węglowodanów ${pctE(st.w * 4, st.k)}%</p>` +
+    `<h3>Wydatek i bilans</h3>` +
+    `<p>Wydatek: <b>${k0(st.burn)} kcal</b> · ${k0(st.burn / n)} / dzień · ${st.nw === n ? 'wszystko z zegarka' : st.nw ? `z zegarka: ${st.nw} z ${n} dni, reszta przewidywana` : 'przewidywany (dane z zegarka wpisz w widoku dnia)'}</p>` +
+    `<p>Bilans: <b>${sgn(bal)} kcal</b> · ${sgn(bal / n)} / dzień · ≈ <b>${kgTxt(bal / 7700)} kg</b> <small>(7700 kcal ≈ 1 kg)</small></p></section>`;
+}
+// Podsumowanie dnia: zjedzone vs cel, udział w energii, wydatek (przewidywany lub z zegarka) i bilans
+function daySumHTML(d, date) {
+  const ty = T(d.type), e = eatenOf(d), burn = burnOf(d), bal = e.k - burn;
+  const row = (name, v, unit, goal, kc) => `<tr><th>${name}</th><td>${k0(v)}${unit}</td><td>${k0(goal)}${unit}</td><td>${kc ? pctE(v * kc, e.k) + '%' : ''}</td></tr>`;
+  return `<section class="wsum" aria-label="Podsumowanie dnia"><h3>Podsumowanie dnia</h3>` +
+    `<table class="mt"><thead><tr><th></th><th>Zjedzone</th><th>Cel</th><th>Energii</th></tr></thead><tbody>` +
+    row('kcal', e.k, '', ty.kcal) + row('Białko', e.b, ' g', ty.b, 4) + row('Tłuszcz', e.t, ' g', ty.t, 9) + row('Węglowodany', e.w, ' g', ty.w, 4) +
+    `</tbody></table>` +
+    `<h3>Wydatek i bilans</h3>` +
+    `<div class="burn"><span>Przewidywany: <b>${k0(ty.burn)} kcal</b><small>rodzaj dnia: ${esc(TYPES[d.type].n.toLowerCase())}</small></span>` +
+    `<label class="gin">Z zegarka <input data-burn="${date}" inputmode="numeric" autocomplete="off" placeholder="—" value="${d.burn != null ? d.burn : ''}" aria-label="Wydatek z zegarka w kcal"> kcal</label></div>` +
+    `<p>Bilans: <b>${sgn(bal)} kcal</b> <small>(zjedzone ${k0(e.k)} − wydatek ${k0(burn)}${d.burn != null ? ' z zegarka' : ' przewidywany'}${date === todayISO() ? ' · dzień trwa' : ''})</small></p></section>`;
+}
 
 function dayHTML() {
   const date = S.date, d = dayOf(date), ty = T(d.type), today = todayISO();
@@ -943,7 +1002,7 @@ function dayHTML() {
     if (!its.length) h += `<button type="button" class="emptyb" data-add="${s}">${s === 'kol' ? 'Wybierz kolację' : '+ Dodaj'}</button>`;
     h += `</section>`;
   }
-  return h + settingsHTML();
+  return h + daySumHTML(d, date) + settingsHTML();
 }
 const recipeHTML = r => `<details class="rcp"><summary>Przepis</summary><ol>${r.split('\n').map(x => x.trim()).filter(Boolean).map(x => `<li>${esc(x)}</li>`).join('')}</ol></details>`;
 // Skład zawsze widoczny w całości (bez ucinania); przy kolacji LIGHT — także co inaczej
@@ -981,25 +1040,50 @@ function weekHTML() {
   let h = `<div class="dnav"><button type="button" class="navb" data-week="-1" aria-label="Poprzedni tydzień">‹</button>` +
     `<div class="dt"><b>${dm(ws)} – ${dm(addD(ws, 6))}</b><span>${ws === weekStart(today) ? 'ten tydzień' : `<button type="button" class="linkbtn" data-act="thisweek">wróć do tego tygodnia</button>`}</span></div>` +
     `<button type="button" class="navb" data-week="1" aria-label="Następny tydzień">›</button></div>`;
-  const tot = { k: 0, b: 0 };
-  let burn = 0, n = 0, goalW = 0, burnW = 0;
+  let goalW = 0, burnW = 0;
+  const dates = [];
   for (let i = 0; i < 7; i++) {
     const date = addD(ws, i), d = dayOf(date), ty = T(d.type), e = eatenOf(d), has = d.items.some(x => x.ok);
+    dates.push(date);
     goalW += ty.kcal; burnW += ty.burn;
-    if (has && date < today) { n++; tot.k += e.k; tot.b += e.b; burn += ty.burn; } // bilans tylko z zakończonych dni
     h += `<button type="button" class="wd${date === today ? ' today' : ''}" data-goday="${date}">` +
       `<span class="n">${DS[parseD(date).getDay()]} ${dm(date)}<small>${esc(TYPES[d.type].n)}</small></span>` +
       `<span class="v">${has ? k0(e.k) : '—'} <small>/ ${k0(ty.kcal)}</small></span>` +
       `<span class="bar"><i class="${e.k > ty.kcal * 1.05 ? 'over' : ''}" style="width:${pct(e.k, ty.kcal)}%"></i></span>` +
-      `<span class="pb">${has ? `Białko ${g0(e.b)} / ${g0(ty.b)} g · T ${g0(e.t)} · W ${g0(e.w)}` : 'brak wpisów'}</span></button>`;
+      `<span class="pb">${has ? `Białko ${g0(e.b)} / ${g0(ty.b)} g · T ${g0(e.t)} · W ${g0(e.w)}` +
+        `<br>Wydatek ${k0(burnOf(d))}${d.burn != null ? ' z zegarka' : ''} · bilans ${sgn(e.k - burnOf(d))}${date === today ? ' (dzień trwa)' : ''}` : 'brak wpisów'}</span></button>`;
   }
-  const sign = x => (x > 0 ? '+' : x < 0 ? '−' : '') + k0(Math.abs(x));
-  h += `<section class="wsum"><h3>Podsumowanie</h3>` +
-    (n ? `<p>Zakończone dni z wpisami: ${n} · zjedzone <b>${k0(tot.k)} kcal</b> · średnio <b>${k0(tot.k / n)}</b> kcal i <b>${g0(tot.b / n)} g</b> białka</p>` +
-      `<p>Bilans z wydatkiem (Garmin): <b>${sign(tot.k - burn)} kcal</b> · ${sign((tot.k - burn) / n)} na dzień</p>`
-      : `<p>Bilans pojawi się po pierwszym zakończonym dniu z wpisami.</p>`) +
-    `<p>Plan tygodnia: ${k0(goalW)} kcal przy wydatku ~${k0(burnW)} → ${sign((goalW - burnW) / 7)} na dzień</p></section>`;
+  h += statsHTML(stats(dates), 'Tydzień');
+  h += `<p class="hint">Plan tygodnia: ${k0(goalW)} kcal przy wydatku ~${k0(burnW)} → ${sgn((goalW - burnW) / 7)} na dzień.</p>`;
   return h;
+}
+
+/* ---------- Miesiąc: tygodnie (pon–nd) w obrębie miesiąca ---------- */
+function monthHTML() {
+  const today = todayISO(), mNow = today.slice(0, 7);
+  const m = S.month || mNow;
+  S.month = m;
+  const [y, mo] = m.split('-').map(Number);
+  const first = `${m}-01`, last = `${m}-${pad(new Date(y, mo, 0).getDate())}`;
+  let h = `<div class="dnav"><button type="button" class="navb" data-month="-1" aria-label="Poprzedni miesiąc">‹</button>` +
+    `<div class="dt"><b>${MN[mo - 1]} ${y}</b><span>${m === mNow ? 'ten miesiąc' : `<button type="button" class="linkbtn" data-act="thismonth">wróć do tego miesiąca</button>`}</span></div>` +
+    `<button type="button" class="navb" data-month="1" aria-label="Następny miesiąc">›</button></div>`;
+  const all = [];
+  for (let ws = weekStart(first); ws <= last; ws = addD(ws, 7)) {
+    const dates = [];
+    for (let i = 0; i < 7; i++) { const x = addD(ws, i); if (x >= first && x <= last) dates.push(x); }
+    all.push(...dates);
+    const st = stats(dates);
+    const goal = st.n ? st.gk / st.n : dates.reduce((a, x) => a + T(dayOf(x).type).kcal, 0) / dates.length;
+    const avg = st.n ? st.k / st.n : 0;
+    const cur = today >= dates[0] && today <= dates[dates.length - 1];
+    h += `<button type="button" class="wd${cur ? ' today' : ''}" data-gowk="${ws}">` +
+      `<span class="n">${dm(dates[0])} – ${dm(dates[dates.length - 1])}<small>${st.n ? `${st.n} ${dniTxt(st.n)} z wpisami` : 'brak zakończonych dni'}</small></span>` +
+      `<span class="v">${st.n ? k0(avg) : '—'} <small>/ ${k0(goal)} śr.</small></span>` +
+      `<span class="bar"><i class="${avg > goal * 1.05 ? 'over' : ''}" style="width:${pct(avg, goal)}%"></i></span>` +
+      `<span class="pb">${st.n ? `Białko śr. ${g0(st.b / st.n)} g · T ${g0(st.t / st.n)} · W ${g0(st.w / st.n)}<br>Bilans ${sgn(st.k - st.burn)} kcal · ${sgn((st.k - st.burn) / st.n)} / dzień` : 'średnie po zakończonych dniach'}</span></button>`;
+  }
+  return h + statsHTML(stats(all), 'Miesiąc');
 }
 
 // Jednostka · przepis w pierwszej linii, skład pod spodem — zawijany, nieucinany
@@ -1270,6 +1354,8 @@ document.addEventListener('click', ev => {
   if (ds.day) { goDate(addD(S.date, Number(ds.day))); return; }
   if (ds.goday) { S.date = ds.goday; S.follow = ds.goday === todayISO(); S.open = {}; location.hash = 'dzien'; return; }
   if (ds.week) { S.week = addD(S.week, 7 * Number(ds.week)); render(true); return; }
+  if (ds.month) { const [y, mo] = S.month.split('-').map(Number), d = new Date(y, mo - 1 + Number(ds.month), 1); S.month = `${d.getFullYear()}-${pad(d.getMonth() + 1)}`; render(true); return; }
+  if (ds.gowk) { S.week = ds.gowk; location.hash = 'tydzien'; return; }
   if (ds.chk) { change(d => { const e = findE(d, ds.chk); if (e) { e.ok = !e.ok; e.p = false; } }); return; }
   if (ds.open) { S.open[ds.open] = !S.open[ds.open]; render(true); return; }
   if (ds.qty) { change(d => { const e = findE(d, ds.qty); if (e) { e.q = stepQ(e.q || 1, Number(ds.dir), e); e.p = false; } }); return; }
@@ -1304,6 +1390,7 @@ document.addEventListener('click', ev => {
   switch (ds.act) {
     case 'today': goDate(todayISO()); return;
     case 'thisweek': S.week = null; render(true); return;
+    case 'thismonth': S.month = null; render(true); return;
     case 'allok': change(d => d.items.forEach(e => { e.ok = true; e.p = false; })); return;
     case 'undo': { const u = S.toast && S.toast.undo; S.toast = null; if (u) u(); return; }
     case 'pk-close': closeDlg($('#pick')); return;
@@ -1326,6 +1413,14 @@ document.addEventListener('click', ev => {
 document.addEventListener('change', ev => {
   const t = ev.target;
   if (t.id === 'dtype') { setType(S.date, t.value); persist(); render(true); return; }
+  // wydatek z zegarka (puste = przewidywany)
+  if (t.dataset && t.dataset.burn) {
+    const raw = t.value.trim(), v = parseInt(raw, 10), d = mat(t.dataset.burn);
+    if (raw === '') delete d.burn;
+    else if (v >= 500 && v <= 9000) d.burn = v;
+    else { render(true); return; }
+    persist(); render(true); return;
+  }
   if (t.dataset && t.dataset.tg) { render(true); return; }
   if (t.name === 'hasL') { lboxSync(); return; }
   // gramy: przelicz na liczbę jednostek
@@ -1354,7 +1449,7 @@ document.addEventListener('toggle', ev => {
 }, true);
 $('#own-form').addEventListener('submit', ev => { ev.preventDefault(); addOwn(); });
 // Enter w polu gramów: zatwierdź bez wysyłania formularza
-document.addEventListener('keydown', ev => { if (ev.key === 'Enter' && (ev.target.id === 'pk-grams' || (ev.target.dataset && ev.target.dataset.grams))) { ev.preventDefault(); ev.target.blur(); } });
+document.addEventListener('keydown', ev => { if (ev.key === 'Enter' && (ev.target.id === 'pk-grams' || (ev.target.dataset && (ev.target.dataset.grams || ev.target.dataset.burn)))) { ev.preventDefault(); ev.target.blur(); } });
 fform.addEventListener('submit', ev => { ev.preventDefault(); saveFood(); });
 $('#import-file').addEventListener('change', ev => { const f = ev.target.files && ev.target.files[0]; if (f) importData(f); ev.target.value = ''; });
 window.addEventListener('hashchange', () => render());
