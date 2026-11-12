@@ -121,7 +121,11 @@ main { padding-block: 10px 120px; display: grid; gap: 8px; }
 .tm { font-family: var(--font-body); font-size: 0.78rem; color: var(--muted); font-weight: 600; letter-spacing: 0; font-variant-numeric: tabular-nums; }
 .sk { color: var(--muted); font-size: 0.85rem; font-variant-numeric: tabular-nums; white-space: nowrap; }
 .addb { flex: none; width: 36px; height: 36px; border-radius: 999px; border: 1px solid var(--line); background: var(--bg); font-size: 1.35rem; line-height: 1; color: var(--accent); font-weight: 600; }
-.it { display: grid; grid-template-columns: 40px minmax(0, 1fr); align-items: start; border-top: 1px solid var(--line); }
+.it { display: grid; grid-template-columns: 40px minmax(0, 1fr) auto; align-items: start; border-top: 1px solid var(--line); }
+.x { width: 34px; height: 44px; margin: 2px -6px 0 2px; border: 0; background: none; color: var(--muted); font-size: 0.95rem; line-height: 1; border-radius: 8px; }
+.x:active { background: var(--chip); }
+.plan-act { display: flex; flex-wrap: wrap; gap: 4px 16px; }
+.linkbtn.rmp { color: var(--muted); }
 .it.new { animation: flash 1.6s ease-out; }
 @keyframes flash { from { background: var(--accent-soft); } to { background: transparent; } }
 @media (prefers-reduced-motion: reduce) { .it.new { animation: none; } }
@@ -1056,7 +1060,8 @@ function dayHTML() {
     `<div class="bar"><i class="${eaten.k > ty.kcal * 1.05 ? 'over' : ''}" style="width:${pct(eaten.k, ty.kcal)}%"></i></div>` +
     `<div class="big sm"><span>Białko <b>${g0(eaten.b)}</b> / ${g0(ty.b)} g</span><span>T ${g0(eaten.t)} g · W ${g0(eaten.w)} g</span></div>` +
     `<div class="bar pr"><i style="width:${pct(eaten.b, ty.b)}%"></i></div>` +
-    (pending ? `<div class="plan"><span>Z resztą planu: ~${k0(all.k)} kcal · ${g0(all.b)} B</span><button type="button" class="linkbtn" data-act="allok">✓ Wszystko zjedzone</button></div>` : '') +
+    (pending ? `<div class="plan"><span>Z resztą planu: ~${k0(all.k)} kcal · ${g0(all.b)} B</span>` +
+      `<span class="plan-act"><button type="button" class="linkbtn" data-act="allok">✓ Wszystko zjedzone</button><button type="button" class="linkbtn rmp" data-act="rmpending">✕ Usuń niezaznaczone</button></span></div>` : '') +
     `</section>`;
   for (const s of daySlots(d)) {
     const its = d.items.filter(e => e.s === s), sl = slotInfo(s);
@@ -1092,7 +1097,8 @@ function itemHTML(e) {
     `<button type="button" class="it-main" data-open="${e.id}" aria-expanded="${open}"><span class="it-txt"><span class="nm">${esc(e.n)}` +
     (e.v ? `<i class="vr ${e.v}">${e.v === 'L' ? 'LIGHT' : 'PEŁNA'}</i>` : '') + (qtyChip(e) ? `<i class="vr">${esc(qtyChip(e))}</i>` : '') + `</span>` +
     compHTML(f, e.v) + `</span>` +
-    `<span class="mc"><b>${k0(e.k * q)}</b> kcal<br>${g0(e.b * q)} B</span></button>`;
+    `<span class="mc"><b>${k0(e.k * q)}</b> kcal<br>${g0(e.b * q)} B</span></button>` +
+    (e.ok ? '' : `<button type="button" class="x" data-rm="${e.id}" aria-label="Usuń z dnia: ${esc(e.n)}">✕</button>`);
   if (open) {
     h += `<div class="more">` + (f && f.r ? recipeHTML(f.r) : '') +
       `<p class="mx"><b>${esc(qtyLong(e))}</b> · ${macroTxt({ k: e.k * q, b: e.b * q, t: e.t * q, w: e.w * q })}</p>` +
@@ -1530,6 +1536,20 @@ document.addEventListener('click', ev => {
     case 'thisweek': S.week = null; render(true); return;
     case 'thismonth': S.month = null; render(true); return;
     case 'allok': change(d => d.items.forEach(e => { e.ok = true; e.p = false; })); return;
+    case 'rmpending': {
+      const date = S.date;
+      change(d => {
+        const removed = d.items.map((e, i) => [i, e]).filter(([, e]) => !e.ok);
+        d.items = d.items.filter(e => e.ok);
+        removed.forEach(([, e]) => delete S.open[e.id]);
+        S.toast = { view: 'dzien', text: `Usunięto niezaznaczone (${removed.length}).`, undo: () => {
+          const dd = mat(date);
+          for (const [i, e] of removed) dd.items.splice(Math.min(i, dd.items.length), 0, e);
+          persist(); render(true);
+        } };
+      });
+      return;
+    }
     case 'undo': { const u = S.toast && S.toast.undo; S.toast = null; if (u) u(); return; }
     case 'pk-close': closeDlg($('#pick')); return;
     case 'pk-undo': {
