@@ -116,6 +116,8 @@ main { padding-block: 10px 120px; display: grid; gap: 8px; }
 .slot { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); padding: 4px 12px 6px; }
 .slot-h { display: flex; align-items: center; gap: 8px; min-height: 44px; }
 .slot-h h3 { flex: 1; min-width: 0; font-size: 1.15rem; text-transform: uppercase; letter-spacing: 0.03em; display: flex; align-items: baseline; gap: 8px; }
+.sl-title { border: 0; background: none; padding: 4px 0; font: inherit; text-transform: inherit; letter-spacing: inherit; color: inherit; text-align: left; display: flex; align-items: baseline; gap: 8px; min-height: 36px; }
+.sl-title::after { content: "✎"; font-family: var(--font-body); font-size: 0.85rem; color: var(--muted); opacity: 0.6; text-transform: none; }
 .tm { font-family: var(--font-body); font-size: 0.78rem; color: var(--muted); font-weight: 600; letter-spacing: 0; font-variant-numeric: tabular-nums; }
 .sk { color: var(--muted); font-size: 0.85rem; font-variant-numeric: tabular-nums; white-space: nowrap; }
 .addb { flex: none; width: 36px; height: 36px; border-radius: 999px; border: 1px solid var(--line); background: var(--bg); font-size: 1.35rem; line-height: 1; color: var(--accent); font-weight: 600; }
@@ -332,6 +334,22 @@ dialog::backdrop { background: rgba(0, 0, 0, 0.5); }
   </details>
 </dialog>
 
+<dialog class="ed" id="sed" aria-labelledby="sed-h">
+  <form id="sed-form" novalidate>
+    <h2 id="sed-h" tabindex="-1" autofocus>Posiłek</h2>
+    <label class="fld">Nazwa<input name="n" maxlength="40" autocomplete="off"></label>
+    <label class="fld">Godzina<input name="t" type="time" step="300"></label>
+    <p class="hint">Bez godziny posiłek będzie na końcu dnia. Usunięcie dotyczy wszystkich dni — wpisy z minionych dni zostają.</p>
+    <p class="msg err" id="sed-err" aria-live="polite"></p>
+    <div class="ed-actions">
+      <button type="button" class="btn-del" data-act="sed-del">Usuń posiłek</button>
+      <button type="button" class="btn2" data-act="sed-base">Domyślne</button>
+      <span class="sp"></span>
+      <button type="button" class="btn2" data-act="sed-cancel">Anuluj</button>
+      <button type="submit" class="save">Zapisz</button>
+    </div>
+  </form>
+</dialog>
 <dialog class="ed" id="fed" aria-labelledby="fed-h">
   <form id="fed-form" novalidate>
     <h2 id="fed-h" tabindex="-1" autofocus>Edytuj</h2>
@@ -341,6 +359,7 @@ dialog::backdrop { background: rgba(0, 0, 0, 0.5); }
       <label class="fld">Jednostka<input name="u" maxlength="30" autocomplete="off" placeholder="np. 1 szt., 100 g"></label>
       <label class="fld">Waga jednostki (g)<input name="gw" inputmode="decimal" autocomplete="off" placeholder="opcjonalnie"></label>
     </div>
+    <label class="fld">Waga 1 sztuki (g) <input name="pcw" inputmode="decimal" autocomplete="off" placeholder="opcjonalnie — do liczenia w sztukach"></label>
     <p class="hint">Kalorie i makro poniżej — na 1 jednostkę.</p>
     <div class="row4">
       <label class="fld">kcal<input name="k" inputmode="decimal" autocomplete="off"></label>
@@ -382,9 +401,11 @@ dialog::backdrop { background: rgba(0, 0, 0, 0.5); }
 // [id, nazwa, krótka nazwa na przycisku w oknie „Dodaj”]
 const CATS = [
   ['rano', 'Rano'], ['sniad', 'Śniadania'], ['przek', 'Przekąski'], ['jog', 'Posiłek 14:00', '14:00'], ['obiad', 'Obiady'],
-  ['kol', 'Kolacje'], ['post', 'Dzień postu', 'Post'], ['dania', 'Dania'], ['surowki', 'Surówki i sałatki', 'Surówki'], ['warzywa', 'Warzywa'], ['owoce', 'Owoce'],
-  ['nabial', 'Nabiał, jajka, odżywka', 'Nabiał'], ['zboza', 'Pieczywo, zboża, ziemniaki', 'Pieczywo i zboża'], ['mieso', 'Mięso, wędliny, ryby', 'Mięso i ryby'],
-  ['tluszcze', 'Tłuszcze, orzechy, nasiona', 'Orzechy i tłuszcze'], ['dodatki', 'Dodatki i sosy', 'Dodatki'], ['napoje', 'Napoje'],
+  ['kol', 'Kolacje'], ['post', 'Dzień postu', 'Post'], ['dania', 'Dania'], ['surowki', 'Surówki i sałatki', 'Surówki'],
+  ['warzywa', 'Warzywa'], ['straczkowe', 'Strączkowe i tofu', 'Strączkowe'], ['owoce', 'Owoce'], ['orzechy', 'Orzechy i nasiona', 'Orzechy'],
+  ['nabial', 'Nabiał, jajka, odżywka', 'Nabiał'], ['sery', 'Sery'], ['pieczywo', 'Pieczywo'],
+  ['zboza', 'Kasze, ryż, makaron, płatki, ziemniaki', 'Kasze i ryż'], ['mieso', 'Mięso'], ['wedliny', 'Wędliny'],
+  ['ryby', 'Ryby i owoce morza', 'Ryby'], ['tluszcze', 'Tłuszcze'], ['dodatki', 'Sosy i dodatki', 'Dodatki'], ['napoje', 'Napoje'],
   ['ciasta', 'Ciasta i wypieki (szacunkowo)', 'Ciasta'], ['cukierki', 'Cukierki'], ['czekolada', 'Czekolada'], ['lody', 'Lody'],
   ['slodkie', 'Batony i przekąski', 'Batony'], ['miasto', 'Na mieście (szacunkowo)', 'Na mieście'], ['moje', 'Moje'],
 ];
@@ -449,17 +470,17 @@ const BASE_FOODS = [
   { id: 'P2', c: 'owoce', n: "Jabłko", u: "1 szt.", g: 180, k: 93.6, b: 0.5, t: 0.4, w: 24.8, d: "" },
   { id: 'P3', c: 'napoje', n: "Kawa z mlekiem", u: "1 kubek", k: 90, b: 4.8, t: 4.8, w: 7, d: "Kubek kawy + 150 ml mleka 3,2%" },
   { id: 'P4', c: 'nabial', n: "Jajko", u: "1 szt.", g: 50, k: 70, b: 6.3, t: 4.9, w: 0.3, d: "" },
-  { id: 'P5', c: 'zboza', n: "Chleb żytni na zakwasie", u: "1 kromka", g: 40, k: 90, b: 2.4, t: 0.6, w: 18, d: "" },
-  { id: 'P6', c: 'zboza', n: "Pieczywo chrupkie żytnie", u: "1 kromka", g: 10, k: 36, b: 1, t: 0.2, w: 7, d: "" },
-  { id: 'P7', c: 'tluszcze', n: "Masło orzechowe 100%", u: "10 g", g: 10, k: 61, b: 2.5, t: 5, w: 1.5, d: "" },
+  { id: 'P5', c: 'pieczywo', n: "Chleb żytni na zakwasie", u: "1 kromka", g: 40, k: 90, b: 2.4, t: 0.6, w: 18, d: "" },
+  { id: 'P6', c: 'pieczywo', n: "Pieczywo chrupkie żytnie", u: "1 kromka", g: 10, k: 36, b: 1, t: 0.2, w: 7, d: "" },
+  { id: 'P7', c: 'orzechy', n: "Masło orzechowe 100%", u: "10 g", g: 10, k: 61, b: 2.5, t: 5, w: 1.5, d: "" },
   { id: 'P8', c: 'zboza', n: "Ryż biały (suchy)", u: "100 g", g: 100, k: 345, b: 7, t: 0.7, w: 77, d: "" },
-  { id: 'P9', c: 'zboza', n: "Ziemniaki", u: "100 g", g: 100, k: 77, b: 1.9, t: 0.1, w: 17, d: "" },
+  { id: 'P9', c: 'zboza', n: "Ziemniaki", u: "100 g", g: 100, pc: 120, k: 77, b: 1.9, t: 0.1, w: 17, d: "średni ziemniak ≈ 120 g" },
   { id: 'P10', c: 'nabial', n: "Jogurt naturalny 3%", u: "100 g", g: 100, k: 70, b: 6, t: 3, w: 5, d: "" },
   { id: 'P11', c: 'nabial', n: "Odżywka białkowa (79%)", u: "20 g", g: 20, k: 76, b: 15.8, t: 1, w: 1, d: "" },
   { id: 'P12', c: 'tluszcze', n: "Oliwa", u: "1 łyżka", g: 10, k: 88.4, b: 0, t: 10, w: 0, d: "" },
-  { id: 'P13', c: 'tluszcze', n: "Orzechy włoskie", u: "15 g", g: 15, k: 98.1, b: 2.3, t: 9.8, w: 2.1, d: "12 połówek" },
+  { id: 'P13', c: 'orzechy', n: "Orzechy włoskie", u: "15 g", g: 15, pc: 1.25, pcl: "połówek", k: 98.1, b: 2.3, t: 9.8, w: 2.1, d: "" },
   { id: 'W1', c: 'warzywa', n: "Pomidor", u: "1 szt.", g: 120, k: 22.8, b: 1.1, t: 0.2, w: 4.3, d: "" },
-  { id: 'W2', c: 'warzywa', n: "Pomidorki koktajlowe", u: "100 g", g: 100, k: 18, b: 0.9, t: 0.2, w: 3.9, d: "ok. 7 szt." },
+  { id: 'W2', c: 'warzywa', n: "Pomidorki koktajlowe", u: "100 g", g: 100, pc: 15, k: 18, b: 0.9, t: 0.2, w: 3.9, d: "" },
   { id: 'W3', c: 'warzywa', n: "Ogórek szklarniowy", u: "1 szt.", g: 320, k: 44.8, b: 2.2, t: 0.3, w: 9.3, d: "długi; ¼ ≈ 80 g" },
   { id: 'W4', c: 'warzywa', n: "Ogórek gruntowy", u: "1 szt.", g: 120, k: 16.8, b: 0.8, t: 0.1, w: 3.5, d: "" },
   { id: 'W5', c: 'warzywa', n: "Ogórek kiszony", u: "1 szt.", g: 80, k: 9.6, b: 0.8, t: 0.1, w: 1.8, d: "" },
@@ -474,25 +495,25 @@ const BASE_FOODS = [
   { id: 'W14', c: 'warzywa', n: "Brokuł", u: "100 g", g: 100, k: 34, b: 2.8, t: 0.4, w: 6.6, d: "" },
   { id: 'W15', c: 'warzywa', n: "Warzywa mrożone (mieszanka)", u: "100 g", g: 100, k: 45, b: 2.4, t: 0.4, w: 7.5, d: "" },
   { id: 'W16', c: 'warzywa', n: "Fasolka szparagowa", u: "100 g", g: 100, k: 31, b: 1.8, t: 0.2, w: 7, d: "" },
-  { id: 'W17', c: 'warzywa', n: "Pieczarki", u: "100 g", g: 100, k: 22, b: 3.1, t: 0.3, w: 3.3, d: "" },
+  { id: 'W17', c: 'warzywa', n: "Pieczarki", u: "100 g", g: 100, pc: 20, k: 22, b: 3.1, t: 0.3, w: 3.3, d: "" },
   { id: 'W18', c: 'warzywa', n: "Cukinia", u: "100 g", g: 100, k: 17, b: 1.2, t: 0.3, w: 3.1, d: "" },
   { id: 'W19', c: 'warzywa', n: "Burak gotowany", u: "100 g", g: 100, k: 44, b: 1.7, t: 0.2, w: 10, d: "" },
   { id: 'W20', c: 'warzywa', n: "Kapusta kiszona", u: "100 g", g: 100, k: 17, b: 1.1, t: 0.2, w: 3.4, d: "" },
   { id: 'W21', c: 'warzywa', n: "Kukurydza z puszki", u: "100 g", g: 100, k: 86, b: 3, t: 1.2, w: 15, d: "" },
-  { id: 'W22', c: 'warzywa', n: "Ciecierzyca z puszki (odsączona)", u: "100 g", g: 100, k: 120, b: 7, t: 2.6, w: 17.4, d: "" },
-  { id: 'W23', c: 'warzywa', n: "Fasola czerwona z puszki", u: "100 g", g: 100, k: 110, b: 7.5, t: 0.6, w: 16, d: "" },
+  { id: 'W22', c: 'straczkowe', n: "Ciecierzyca z puszki (odsączona)", u: "100 g", g: 100, k: 120, b: 7, t: 2.6, w: 17.4, d: "" },
+  { id: 'W23', c: 'straczkowe', n: "Fasola czerwona z puszki", u: "100 g", g: 100, k: 110, b: 7.5, t: 0.6, w: 16, d: "" },
   { id: 'W24', c: 'warzywa', n: "Groszek zielony", u: "100 g", g: 100, k: 81, b: 5.4, t: 0.4, w: 14.5, d: "" },
   { id: 'W25', c: 'warzywa', n: "Passata pomidorowa", u: "100 g", g: 100, k: 30, b: 1.4, t: 0.2, w: 5, d: "" },
-  { id: 'W26', c: 'warzywa', n: "Bataty", u: "100 g", g: 100, k: 86, b: 1.6, t: 0.1, w: 20, d: "" },
+  { id: 'W26', c: 'zboza', n: "Bataty", u: "100 g", g: 100, pc: 250, k: 86, b: 1.6, t: 0.1, w: 20, d: "średni batat ≈ 250 g" },
   { id: 'O1', c: 'owoce', n: "Gruszka", u: "1 szt.", g: 170, k: 96.9, b: 0.7, t: 0.2, w: 25.8, d: "" },
   { id: 'O2', c: 'owoce', n: "Pomarańcza", u: "1 szt.", g: 200, k: 94, b: 1.8, t: 0.2, w: 23.6, d: "" },
   { id: 'O3', c: 'owoce', n: "Mandarynka", u: "1 szt.", g: 70, k: 37.1, b: 0.6, t: 0.2, w: 9.3, d: "" },
   { id: 'O4', c: 'owoce', n: "Kiwi", u: "1 szt.", g: 75, k: 45.8, b: 0.8, t: 0.4, w: 11, d: "" },
   { id: 'O5', c: 'owoce', n: "Brzoskwinia", u: "1 szt.", g: 150, k: 58.5, b: 1.4, t: 0.4, w: 14.2, d: "" },
-  { id: 'O6', c: 'owoce', n: "Truskawki", u: "100 g", g: 100, k: 32, b: 0.7, t: 0.3, w: 7.7, d: "" },
-  { id: 'O7', c: 'owoce', n: "Maliny", u: "100 g", g: 100, k: 52, b: 1.2, t: 0.7, w: 11.9, d: "" },
+  { id: 'O6', c: 'owoce', n: "Truskawki", u: "100 g", g: 100, pc: 15, k: 32, b: 0.7, t: 0.3, w: 7.7, d: "" },
+  { id: 'O7', c: 'owoce', n: "Maliny", u: "100 g", g: 100, pc: 4, k: 52, b: 1.2, t: 0.7, w: 11.9, d: "" },
   { id: 'O8', c: 'owoce', n: "Borówki", u: "100 g", g: 100, k: 57, b: 0.7, t: 0.3, w: 14.5, d: "" },
-  { id: 'O9', c: 'owoce', n: "Winogrona", u: "100 g", g: 100, k: 69, b: 0.7, t: 0.2, w: 18.1, d: "" },
+  { id: 'O9', c: 'owoce', n: "Winogrona", u: "100 g", g: 100, pc: 5, k: 69, b: 0.7, t: 0.2, w: 18.1, d: "" },
   { id: 'O10', c: 'owoce', n: "Arbuz", u: "100 g", g: 100, k: 30, b: 0.6, t: 0.2, w: 7.6, d: "" },
   { id: 'O11', c: 'owoce', n: "Śliwka suszona", u: "1 szt.", g: 8, k: 19.2, b: 0.2, t: 0, w: 5.1, d: "" },
   { id: 'O12', c: 'owoce', n: "Daktyl suszony", u: "1 szt.", g: 8, k: 22.6, b: 0.2, t: 0, w: 6, d: "" },
@@ -506,16 +527,16 @@ const BASE_FOODS = [
   { id: 'N7', c: 'nabial', n: "Mleko 3,2%", u: "1 szklanka", g: 250, k: 150, b: 8, t: 8, w: 11.8, d: "" },
   { id: 'N8', c: 'nabial', n: "Mleko 2%", u: "1 szklanka", g: 250, k: 125, b: 8.5, t: 5, w: 12.2, d: "" },
   { id: 'N9', c: 'nabial', n: "Kefir 2%", u: "1 szklanka", g: 250, k: 125, b: 8.5, t: 5, w: 11.8, d: "" },
-  { id: 'N10', c: 'nabial', n: "Ser żółty (Edam)", u: "1 plaster", g: 15, k: 50.2, b: 3.9, t: 3.8, w: 0.1, d: "" },
-  { id: 'N11', c: 'nabial', n: "Mozzarella", u: "1 kulka", g: 125, k: 312.5, b: 22.5, t: 23.8, w: 2.5, d: "" },
-  { id: 'N12', c: 'nabial', n: "Ser feta", u: "100 g", g: 100, k: 260, b: 15, t: 21, w: 2, d: "" },
-  { id: 'N13', c: 'nabial', n: "Parmezan tarty", u: "1 łyżka", g: 10, k: 40, b: 3.5, t: 2.8, w: 0, d: "" },
-  { id: 'N14', c: 'nabial', n: "Serek śmietankowy", u: "1 łyżka", g: 20, k: 46, b: 1.2, t: 4.2, w: 0.8, d: "" },
+  { id: 'N10', c: 'sery', n: "Ser żółty (Edam)", u: "1 plaster", g: 15, k: 50.2, b: 3.9, t: 3.8, w: 0.1, d: "" },
+  { id: 'N11', c: 'sery', n: "Mozzarella", u: "1 kulka", g: 125, k: 312.5, b: 22.5, t: 23.8, w: 2.5, d: "" },
+  { id: 'N12', c: 'sery', n: "Ser feta", u: "100 g", g: 100, k: 260, b: 15, t: 21, w: 2, d: "" },
+  { id: 'N13', c: 'sery', n: "Parmezan tarty", u: "1 łyżka", g: 10, k: 40, b: 3.5, t: 2.8, w: 0, d: "" },
+  { id: 'N14', c: 'sery', n: "Serek śmietankowy", u: "1 łyżka", g: 20, k: 46, b: 1.2, t: 4.2, w: 0.8, d: "" },
   { id: 'N15', c: 'nabial', n: "Śmietana 12%", u: "1 łyżka", g: 15, k: 19.9, b: 0.4, t: 1.8, w: 0.5, d: "" },
-  { id: 'Z1', c: 'zboza', n: "Bułka pszenna", u: "1 szt.", g: 50, k: 140, b: 4.4, t: 1.4, w: 27.5, d: "" },
-  { id: 'Z2', c: 'zboza', n: "Bułka grahamka", u: "1 szt.", g: 60, k: 150, b: 5.4, t: 1.5, w: 28.2, d: "" },
-  { id: 'Z3', c: 'zboza', n: "Chleb pełnoziarnisty", u: "1 kromka", g: 35, k: 84, b: 2.8, t: 1, w: 15, d: "" },
-  { id: 'Z4', c: 'zboza', n: "Wrap pełnoziarnisty", u: "1 szt.", g: 70, k: 210, b: 6.3, t: 4.9, w: 34.3, d: "" },
+  { id: 'Z1', c: 'pieczywo', n: "Bułka pszenna", u: "1 szt.", g: 50, k: 140, b: 4.4, t: 1.4, w: 27.5, d: "" },
+  { id: 'Z2', c: 'pieczywo', n: "Bułka grahamka", u: "1 szt.", g: 60, k: 150, b: 5.4, t: 1.5, w: 28.2, d: "" },
+  { id: 'Z3', c: 'pieczywo', n: "Chleb pełnoziarnisty", u: "1 kromka", g: 35, k: 84, b: 2.8, t: 1, w: 15, d: "" },
+  { id: 'Z4', c: 'pieczywo', n: "Wrap pełnoziarnisty", u: "1 szt.", g: 70, k: 210, b: 6.3, t: 4.9, w: 34.3, d: "" },
   { id: 'Z5', c: 'zboza', n: "Płatki owsiane", u: "40 g", g: 40, k: 148, b: 5.2, t: 2.8, w: 24, d: "" },
   { id: 'Z6', c: 'zboza', n: "Ryż ugotowany", u: "100 g", g: 100, k: 130, b: 2.7, t: 0.3, w: 28, d: "" },
   { id: 'Z7', c: 'zboza', n: "Makaron pełnoziarnisty (suchy)", u: "100 g", g: 100, k: 345, b: 13.5, t: 2.5, w: 64, d: "" },
@@ -526,35 +547,35 @@ const BASE_FOODS = [
   { id: 'Z12', c: 'zboza', n: "Kasza bulgur (sucha)", u: "100 g", g: 100, k: 342, b: 12.3, t: 1.3, w: 76, d: "" },
   { id: 'Z13', c: 'zboza', n: "Mąka pszenna typ 550", u: "100 g", g: 100, k: 343, b: 10, t: 1.2, w: 74, d: "" },
   { id: 'Z14', c: 'zboza', n: "Musli bez cukru", u: "50 g", g: 50, k: 185, b: 5, t: 3.5, w: 31, d: "" },
-  { id: 'Z15', c: 'zboza', n: "Wafel ryżowy", u: "1 szt.", g: 9, k: 35.1, b: 0.7, t: 0.3, w: 7.3, d: "" },
-  { id: 'M1', c: 'mieso', n: "Pierś z kurczaka (surowa)", u: "100 g", g: 100, k: 99, b: 21.5, t: 1.3, w: 0, d: "" },
+  { id: 'Z15', c: 'pieczywo', n: "Wafel ryżowy", u: "1 szt.", g: 9, k: 35.1, b: 0.7, t: 0.3, w: 7.3, d: "" },
+  { id: 'M1', c: 'mieso', n: "Pierś z kurczaka (surowa)", u: "100 g", g: 100, pc: 220, k: 99, b: 21.5, t: 1.3, w: 0, d: "1 filet ≈ 220 g" },
   { id: 'M2', c: 'mieso', n: "Pierś z kurczaka (pieczona)", u: "100 g", g: 100, k: 165, b: 31, t: 3.6, w: 0, d: "" },
   { id: 'M3', c: 'mieso', n: "Pierś z indyka (surowa)", u: "100 g", g: 100, k: 98, b: 22, t: 1, w: 0, d: "" },
   { id: 'M4', c: 'mieso', n: "Mięso mielone z indyka", u: "100 g", g: 100, k: 140, b: 19, t: 7, w: 0, d: "" },
   { id: 'M5', c: 'mieso', n: "Udko z kurczaka bez skóry", u: "100 g", g: 100, k: 120, b: 19, t: 4.5, w: 0, d: "" },
   { id: 'M6', c: 'mieso', n: "Wołowina chuda", u: "100 g", g: 100, k: 133, b: 21, t: 5.5, w: 0, d: "" },
   { id: 'M7', c: 'mieso', n: "Schab", u: "100 g", g: 100, k: 150, b: 21, t: 7, w: 0, d: "" },
-  { id: 'M8', c: 'mieso', n: "Łosoś (surowy)", u: "100 g", g: 100, k: 201, b: 20, t: 13.6, w: 0, d: "" },
-  { id: 'M9', c: 'mieso', n: "Łosoś wędzony", u: "100 g", g: 100, k: 170, b: 21, t: 9.5, w: 0, d: "" },
-  { id: 'M10', c: 'mieso', n: "Dorsz", u: "100 g", g: 100, k: 78, b: 17.7, t: 0.7, w: 0, d: "" },
-  { id: 'M11', c: 'mieso', n: "Mintaj", u: "100 g", g: 100, k: 72, b: 15.9, t: 0.8, w: 0, d: "" },
-  { id: 'M12', c: 'mieso', n: "Makrela wędzona", u: "100 g", g: 100, k: 221, b: 20.7, t: 15.5, w: 0, d: "" },
-  { id: 'M13', c: 'mieso', n: "Tuńczyk w sosie własnym", u: "1 puszka", g: 120, k: 126, b: 28.8, t: 1.2, w: 0, d: "odsączony" },
-  { id: 'M14', c: 'mieso', n: "Krewetki", u: "100 g", g: 100, k: 70, b: 16, t: 0.6, w: 0, d: "" },
-  { id: 'M15', c: 'mieso', n: "Szynka drobiowa", u: "1 plaster", g: 10, k: 10.5, b: 1.9, t: 0.3, w: 0.1, d: "" },
-  { id: 'M16', c: 'mieso', n: "Kabanos", u: "1 szt.", g: 25, k: 117.5, b: 6, t: 10.2, w: 0.2, d: "" },
-  { id: 'M17', c: 'mieso', n: "Parówka", u: "1 szt.", g: 50, k: 125, b: 6, t: 11, w: 1, d: "" },
+  { id: 'M8', c: 'ryby', n: "Łosoś (surowy)", u: "100 g", g: 100, k: 201, b: 20, t: 13.6, w: 0, d: "" },
+  { id: 'M9', c: 'ryby', n: "Łosoś wędzony", u: "100 g", g: 100, k: 170, b: 21, t: 9.5, w: 0, d: "" },
+  { id: 'M10', c: 'ryby', n: "Dorsz", u: "100 g", g: 100, k: 78, b: 17.7, t: 0.7, w: 0, d: "" },
+  { id: 'M11', c: 'ryby', n: "Mintaj", u: "100 g", g: 100, k: 72, b: 15.9, t: 0.8, w: 0, d: "" },
+  { id: 'M12', c: 'ryby', n: "Makrela wędzona", u: "100 g", g: 100, k: 221, b: 20.7, t: 15.5, w: 0, d: "" },
+  { id: 'M13', c: 'ryby', n: "Tuńczyk w sosie własnym", u: "1 puszka", g: 120, k: 126, b: 28.8, t: 1.2, w: 0, d: "odsączony" },
+  { id: 'M14', c: 'ryby', n: "Krewetki", u: "100 g", g: 100, pc: 10, k: 70, b: 16, t: 0.6, w: 0, d: "" },
+  { id: 'M15', c: 'wedliny', n: "Szynka drobiowa", u: "1 plaster", g: 10, k: 10.5, b: 1.9, t: 0.3, w: 0.1, d: "" },
+  { id: 'M16', c: 'wedliny', n: "Kabanos", u: "1 szt.", g: 25, k: 117.5, b: 6, t: 10.2, w: 0.2, d: "" },
+  { id: 'M17', c: 'wedliny', n: "Parówka", u: "1 szt.", g: 50, k: 125, b: 6, t: 11, w: 1, d: "" },
   { id: 'T1', c: 'tluszcze', n: "Masło", u: "1 łyżeczka", g: 5, k: 36.8, b: 0, t: 4.1, w: 0, d: "" },
   { id: 'T2', c: 'tluszcze', n: "Olej rzepakowy", u: "1 łyżka", g: 10, k: 88.4, b: 0, t: 10, w: 0, d: "" },
-  { id: 'T3', c: 'tluszcze', n: "Migdały", u: "1 garść", g: 25, k: 144.8, b: 5.3, t: 12.5, w: 5.4, d: "" },
-  { id: 'T4', c: 'tluszcze', n: "Nerkowce", u: "15 g", g: 15, k: 83, b: 2.7, t: 6.6, w: 4.5, d: "" },
-  { id: 'T5', c: 'tluszcze', n: "Orzechy laskowe", u: "1 garść", g: 25, k: 157, b: 3.8, t: 15.2, w: 4.2, d: "" },
-  { id: 'T6', c: 'tluszcze', n: "Pestki dyni", u: "10 g", g: 10, k: 55.9, b: 3, t: 4.9, w: 1.1, d: "" },
-  { id: 'T7', c: 'tluszcze', n: "Słonecznik", u: "10 g", g: 10, k: 58.4, b: 2.1, t: 5.1, w: 2, d: "" },
-  { id: 'T8', c: 'tluszcze', n: "Chia", u: "7 g", g: 7, k: 34, b: 1.2, t: 2.2, w: 2.9, d: "" },
-  { id: 'T9', c: 'tluszcze', n: "Siemię lniane mielone", u: "7 g", g: 7, k: 37.4, b: 1.3, t: 2.9, w: 2, d: "" },
-  { id: 'T10', c: 'tluszcze', n: "Tahini", u: "1 łyżka", g: 15, k: 89.2, b: 2.5, t: 8.1, w: 3.1, d: "" },
-  { id: 'T11', c: 'tluszcze', n: "Oliwki", u: "10 szt.", g: 30, k: 34.5, b: 0.2, t: 3.2, w: 1.8, d: "" },
+  { id: 'T3', c: 'orzechy', n: "Migdały", u: "1 garść", g: 24, pc: 1.2, k: 139, b: 5.1, t: 12, w: 5.2, d: "" },
+  { id: 'T4', c: 'orzechy', n: "Nerkowce", u: "15 g", g: 15, pc: 1.6, k: 83, b: 2.7, t: 6.6, w: 4.5, d: "" },
+  { id: 'T5', c: 'orzechy', n: "Orzechy laskowe", u: "1 garść", g: 25, pc: 1.4, k: 157, b: 3.8, t: 15.2, w: 4.2, d: "" },
+  { id: 'T6', c: 'orzechy', n: "Pestki dyni", u: "10 g", g: 10, k: 55.9, b: 3, t: 4.9, w: 1.1, d: "" },
+  { id: 'T7', c: 'orzechy', n: "Słonecznik", u: "10 g", g: 10, k: 58.4, b: 2.1, t: 5.1, w: 2, d: "" },
+  { id: 'T8', c: 'orzechy', n: "Chia", u: "7 g", g: 7, k: 34, b: 1.2, t: 2.2, w: 2.9, d: "" },
+  { id: 'T9', c: 'orzechy', n: "Siemię lniane mielone", u: "7 g", g: 7, k: 37.4, b: 1.3, t: 2.9, w: 2, d: "" },
+  { id: 'T10', c: 'orzechy', n: "Tahini", u: "1 łyżka", g: 15, k: 89.2, b: 2.5, t: 8.1, w: 3.1, d: "" },
+  { id: 'T11', c: 'dodatki', n: "Oliwki", u: "10 szt.", g: 30, pc: 3, k: 34.5, b: 0.2, t: 3.2, w: 1.8, d: "" },
   { id: 'A1', c: 'dodatki', n: "Hummus domowy", u: "40 g", g: 40, k: 92, b: 2.4, t: 6.8, w: 5.4, d: "z planu: ciecierzyca, tahini, oliwa" },
   { id: 'A2', c: 'dodatki', n: "Miód", u: "1 łyżeczka", g: 10, k: 30.4, b: 0, t: 0, w: 8.2, d: "" },
   { id: 'A3', c: 'dodatki', n: "Dżem niskosłodzony", u: "1 łyżka", g: 20, k: 32, b: 0.1, t: 0, w: 7.6, d: "" },
@@ -619,22 +640,22 @@ const BASE_FOODS = [
   { id: 'M27', c: 'mieso', n: "Karkówka", u: "100 g", g: 100, k: 260, b: 16, t: 22, w: 0, d: "" },
   { id: 'M28', c: 'mieso', n: "Mięso mielone wieprzowe", u: "100 g", g: 100, k: 255, b: 17, t: 21, w: 0, d: "" },
   { id: 'M29', c: 'mieso', n: "Żeberka wieprzowe (pieczone)", u: "100 g", g: 100, k: 290, b: 23, t: 22, w: 0, d: "samo mięso" },
-  { id: 'M30', c: 'mieso', n: "Boczek wędzony", u: "1 plaster", g: 15, k: 64.5, b: 1.9, t: 6.3, w: 0.1, d: "" },
-  { id: 'M31', c: 'mieso', n: "Szynka wieprzowa gotowana", u: "1 plaster", g: 15, k: 16.5, b: 2.7, t: 0.6, w: 0.1, d: "" },
-  { id: 'M32', c: 'mieso', n: "Polędwica sopocka", u: "1 plaster", g: 10, k: 12.5, b: 2.1, t: 0.4, w: 0.1, d: "" },
-  { id: 'M33', c: 'mieso', n: "Kiełbasa krakowska sucha", u: "1 plaster", g: 10, k: 30, b: 2.5, t: 2.2, w: 0.1, d: "" },
-  { id: 'M34', c: 'mieso', n: "Kiełbasa śląska", u: "100 g", g: 100, k: 280, b: 13, t: 25, w: 2, d: "" },
-  { id: 'M35', c: 'mieso', n: "Salami", u: "1 plaster", g: 5, k: 21, b: 1.1, t: 1.8, w: 0.1, d: "" },
-  { id: 'M36', c: 'mieso', n: "Pasztet", u: "1 plaster", g: 30, k: 84, b: 3.6, t: 7.2, w: 1.5, d: "" },
-  { id: 'M37', c: 'mieso', n: "Pstrąg", u: "100 g", g: 100, k: 141, b: 20, t: 6.2, w: 0, d: "" },
-  { id: 'M38', c: 'mieso', n: "Morszczuk", u: "100 g", g: 100, k: 80, b: 17, t: 1, w: 0, d: "" },
-  { id: 'M39', c: 'mieso', n: "Tilapia", u: "100 g", g: 100, k: 96, b: 20, t: 1.7, w: 0, d: "" },
-  { id: 'M40', c: 'mieso', n: "Śledź (filet)", u: "100 g", g: 100, k: 158, b: 18, t: 9, w: 0, d: "" },
-  { id: 'M41', c: 'mieso', n: "Śledź w oleju", u: "1 płat", g: 50, k: 145, b: 7.5, t: 12.5, w: 0.5, d: "" },
-  { id: 'M42', c: 'mieso', n: "Sardynki w oleju (odsączone)", u: "1 puszka", g: 85, k: 176.8, b: 20.9, t: 9.8, w: 0, d: "" },
-  { id: 'M43', c: 'mieso', n: "Ryba panierowana smażona", u: "100 g", g: 100, k: 220, b: 15, t: 12, w: 13, d: "szacunkowo" },
-  { id: 'M44', c: 'mieso', n: "Paluszki rybne (pieczone)", u: "1 szt.", g: 25, k: 55, b: 3, t: 2.5, w: 5, d: "" },
-  { id: 'M45', c: 'mieso', n: "Tofu naturalne", u: "100 g", g: 100, k: 120, b: 13, t: 7, w: 1.5, d: "" },
+  { id: 'M30', c: 'wedliny', n: "Boczek wędzony", u: "1 plaster", g: 15, k: 64.5, b: 1.9, t: 6.3, w: 0.1, d: "" },
+  { id: 'M31', c: 'wedliny', n: "Szynka wieprzowa gotowana", u: "1 plaster", g: 15, k: 16.5, b: 2.7, t: 0.6, w: 0.1, d: "" },
+  { id: 'M32', c: 'wedliny', n: "Polędwica sopocka", u: "1 plaster", g: 10, k: 12.5, b: 2.1, t: 0.4, w: 0.1, d: "" },
+  { id: 'M33', c: 'wedliny', n: "Kiełbasa krakowska sucha", u: "1 plaster", g: 10, k: 30, b: 2.5, t: 2.2, w: 0.1, d: "" },
+  { id: 'M34', c: 'wedliny', n: "Kiełbasa śląska", u: "100 g", g: 100, k: 280, b: 13, t: 25, w: 2, d: "" },
+  { id: 'M35', c: 'wedliny', n: "Salami", u: "1 plaster", g: 5, k: 21, b: 1.1, t: 1.8, w: 0.1, d: "" },
+  { id: 'M36', c: 'wedliny', n: "Pasztet", u: "1 plaster", g: 30, k: 84, b: 3.6, t: 7.2, w: 1.5, d: "" },
+  { id: 'M37', c: 'ryby', n: "Pstrąg", u: "100 g", g: 100, k: 141, b: 20, t: 6.2, w: 0, d: "" },
+  { id: 'M38', c: 'ryby', n: "Morszczuk", u: "100 g", g: 100, k: 80, b: 17, t: 1, w: 0, d: "" },
+  { id: 'M39', c: 'ryby', n: "Tilapia", u: "100 g", g: 100, k: 96, b: 20, t: 1.7, w: 0, d: "" },
+  { id: 'M40', c: 'ryby', n: "Śledź (filet)", u: "100 g", g: 100, k: 158, b: 18, t: 9, w: 0, d: "" },
+  { id: 'M41', c: 'ryby', n: "Śledź w oleju", u: "1 płat", g: 50, k: 145, b: 7.5, t: 12.5, w: 0.5, d: "" },
+  { id: 'M42', c: 'ryby', n: "Sardynki w oleju (odsączone)", u: "1 puszka", g: 85, k: 176.8, b: 20.9, t: 9.8, w: 0, d: "" },
+  { id: 'M43', c: 'ryby', n: "Ryba panierowana smażona", u: "100 g", g: 100, k: 220, b: 15, t: 12, w: 13, d: "szacunkowo" },
+  { id: 'M44', c: 'ryby', n: "Paluszki rybne (pieczone)", u: "1 szt.", g: 25, k: 55, b: 3, t: 2.5, w: 5, d: "" },
+  { id: 'M45', c: 'straczkowe', n: "Tofu naturalne", u: "100 g", g: 100, k: 120, b: 13, t: 7, w: 1.5, d: "" },
   { id: 'SU1', c: 'surowki', n: "Surówka z marchewki i jabłka", u: "1 porcja", k: 70, b: 1.1, t: 0.3, w: 16.5, d: "100 g marchewki, 50 g jabłka, cytryna · z łyżeczką oleju +45 kcal" },
   { id: 'SU2', c: 'surowki', n: "Surówka z kapusty kiszonej", u: "1 porcja", k: 76, b: 1.6, t: 5.3, w: 6.4, d: "120 g kapusty kiszonej, marchew, cebula, 5 g oleju" },
   { id: 'SU3', c: 'surowki', n: "Surówka z białej kapusty", u: "1 porcja", k: 82, b: 1.7, t: 5.2, w: 8, d: "120 g kapusty, marchew, 5 g oleju, ocet / cytryna" },
@@ -687,6 +708,24 @@ const BASE_FOODS = [
   { id: 'SL11', c: 'slodkie', n: "Wafel w czekoladzie", u: "1 szt.", g: 35, k: 183.8, b: 2, t: 10.1, w: 21, d: "typu Prince Polo" },
   { id: 'SL12', c: 'slodkie', n: "Kinder Bueno (1 batonik)", u: "1 szt.", g: 21.5, k: 123, b: 1.8, t: 8, w: 10.6, d: "" },
   { id: 'SL13', c: 'slodkie', n: "Paluszki słone", u: "1 garść", g: 25, k: 95, b: 2.5, t: 1, w: 18.8, d: "" },
+  { id: 'OR1', c: 'orzechy', n: "Pistacje łuskane", u: "1 garść", g: 25, pc: 0.6, k: 140, b: 5, t: 11.3, w: 6.8, d: "" },
+  { id: 'OR2', c: 'orzechy', n: "Orzech brazylijski", u: "1 szt.", g: 5, k: 33, b: 0.7, t: 3.4, w: 0.6, d: "bardzo dużo selenu" },
+  { id: 'OR3', c: 'orzechy', n: "Orzechy makadamia", u: "1 garść", g: 25, pc: 2.5, k: 179.5, b: 2, t: 18.9, w: 3.5, d: "" },
+  { id: 'OR4', c: 'orzechy', n: "Orzechy pekan", u: "1 garść", g: 25, pc: 1.2, pcl: "połówek", k: 172.8, b: 2.3, t: 18, w: 3.5, d: "" },
+  { id: 'OR5', c: 'orzechy', n: "Orzeszki ziemne niesolone", u: "1 garść", g: 25, pc: 0.6, k: 141.8, b: 6.5, t: 12.3, w: 4, d: "" },
+  { id: 'OR6', c: 'orzechy', n: "Orzeszki ziemne solone, prażone", u: "1 garść", g: 25, pc: 0.6, k: 150, b: 6.5, t: 12.5, w: 3.2, d: "" },
+  { id: 'OR7', c: 'orzechy', n: "Mieszanka studencka", u: "1 garść", g: 30, k: 138, b: 3.6, t: 8.4, w: 12.6, d: "orzechy + rodzynki" },
+  { id: 'OR8', c: 'orzechy', n: "Sezam", u: "1 łyżka", g: 9, k: 51.6, b: 1.6, t: 4.5, w: 2.1, d: "" },
+  { id: 'OR9', c: 'orzechy', n: "Wiórki kokosowe", u: "1 łyżka", g: 6, k: 39.6, b: 0.4, t: 3.9, w: 1.4, d: "" },
+  { id: 'OR10', c: 'orzechy', n: "Masło migdałowe", u: "10 g", g: 10, k: 61.4, b: 2.1, t: 5.6, w: 1.9, d: "" },
+  { id: 'T12', c: 'tluszcze', n: "Olej kokosowy", u: "1 łyżka", g: 10, k: 86.2, b: 0, t: 10, w: 0, d: "" },
+  { id: 'ST1', c: 'straczkowe', n: "Fasola biała z puszki", u: "100 g", g: 100, k: 100, b: 7, t: 0.5, w: 15, d: "" },
+  { id: 'ST2', c: 'straczkowe', n: "Soczewica czerwona (sucha)", u: "100 g", g: 100, k: 350, b: 24, t: 2, w: 54, d: "" },
+  { id: 'ST3', c: 'straczkowe', n: "Soczewica ugotowana", u: "100 g", g: 100, k: 116, b: 9, t: 0.4, w: 20, d: "" },
+  { id: 'ST4', c: 'straczkowe', n: "Edamame", u: "100 g", g: 100, k: 121, b: 11.9, t: 5.2, w: 8.9, d: "" },
+  { id: 'SE1', c: 'sery', n: "Camembert / brie", u: "1 plaster", g: 20, k: 60, b: 4, t: 4.8, w: 0.1, d: "" },
+  { id: 'PI1', c: 'pieczywo', n: "Chleb tostowy", u: "1 kromka", g: 25, k: 66.2, b: 2, t: 0.9, w: 12.2, d: "" },
+  { id: 'PI2', c: 'pieczywo', n: "Bagietka", u: "1 kawałek", g: 50, k: 135, b: 4.5, t: 0.8, w: 27.5, d: "" },
 ];
 // Przepisy — kroki (r), pokazywane po rozwinięciu pozycji
 const RECIPES = {
@@ -741,14 +780,15 @@ const BASEM = Object.fromEntries(BASE_FOODS.map(f => [f.id, f]));
 // Posiłki dnia (kolejność na ekranie). c = kategoria, od której zaczyna się lista „Dodaj”
 const SLOTS = {
   rano:   { t: '08:15', n: 'Rano', cs: ['rano', 'owoce', 'nabial', 'napoje'] },
-  sniad:  { t: '10:00', n: 'Śniadanie', cs: ['sniad', 'dania', 'zboza', 'nabial', 'warzywa', 'mieso', 'tluszcze', 'dodatki', 'napoje', 'owoce'] },
-  przek:  { t: '12:00', n: 'Przekąska', cs: ['przek', 'owoce', 'tluszcze', 'zboza', 'nabial', 'napoje', 'ciasta', 'cukierki', 'czekolada', 'slodkie'] },
-  jog:    { t: '14:00', n: 'Posiłek 14:00', cs: ['jog', 'nabial', 'zboza', 'owoce', 'tluszcze'] },
-  post14: { t: '14:00', n: 'Przerwanie postu', cs: ['post', 'dania', 'mieso', 'zboza', 'warzywa'] },
-  obiad:  { t: '16:00', n: 'Obiad', cs: ['obiad', 'mieso', 'surowki', 'zboza', 'warzywa', 'dania', 'tluszcze', 'dodatki', 'miasto'] },
-  kol:    { t: '19:00', n: 'Kolacja', cs: ['kol', 'dania', 'zboza', 'nabial', 'warzywa', 'mieso', 'surowki', 'tluszcze', 'dodatki'] },
-  dod:    { t: '', n: 'Dodatkowo', cs: ['ciasta', 'cukierki', 'czekolada', 'lody', 'slodkie', 'owoce', 'napoje', 'miasto', 'dania', 'nabial'] },
+  sniad:  { t: '10:00', n: 'Śniadanie', cs: ['sniad', 'dania', 'pieczywo', 'nabial', 'sery', 'wedliny', 'warzywa', 'ryby', 'tluszcze', 'dodatki', 'napoje', 'owoce', 'orzechy'] },
+  przek:  { t: '12:00', n: 'Przekąska', cs: ['przek', 'owoce', 'orzechy', 'pieczywo', 'nabial', 'napoje', 'ciasta', 'cukierki', 'czekolada', 'slodkie'] },
+  jog:    { t: '14:00', n: 'Posiłek 14:00', cs: ['jog', 'nabial', 'zboza', 'owoce', 'orzechy'] },
+  post14: { t: '14:00', n: 'Przerwanie postu', cs: ['post', 'dania', 'mieso', 'ryby', 'zboza', 'warzywa'] },
+  obiad:  { t: '16:00', n: 'Obiad', cs: ['obiad', 'mieso', 'ryby', 'surowki', 'zboza', 'warzywa', 'straczkowe', 'dania', 'tluszcze', 'dodatki', 'miasto'] },
+  kol:    { t: '19:00', n: 'Kolacja', cs: ['kol', 'dania', 'pieczywo', 'nabial', 'sery', 'wedliny', 'ryby', 'warzywa', 'surowki', 'mieso', 'tluszcze', 'dodatki'] },
+  dod:    { t: '', n: 'Dodatkowo', cs: ['ciasta', 'cukierki', 'czekolada', 'lody', 'slodkie', 'orzechy', 'owoce', 'napoje', 'miasto', 'dania', 'nabial'] },
 };
+const CUSTOM_CS = ['dania', 'kol', 'pieczywo', 'nabial', 'owoce', 'slodkie'];
 const SLOT_ORDER = Object.keys(SLOTS);
 // Rodzaj dnia: kcal / b / t / w = cel, burn = wydatek przewidywany (Garmin, tydzień ~17 150; dzień można poprawić wartością z zegarka — days[data].burn), v = domyślna wersja kolacji, slots = posiłki i co jest w planie
 const TYPES = {
@@ -797,18 +837,23 @@ function stepQ(q, dir, e) {
 const counted = u => /^1\s/.test(u || '');            // „1 szt.”, „1 kromka” — liczone sztukami
 const sfx = u => /ml/.test(u || '') ? 'ml' : 'g';
 // Tekst przy nazwie: gramy dla produktów na wagę, „×½” dla sztuk i porcji
+// Sztuki: z wagi sztuki (pc) albo wprost, gdy jednostką jest mała sztuka (cukierek, kostka)
+const pcsOf = e => e.pc && e.g ? (e.q || 1) * e.g / e.pc : small(e) ? (e.q || 1) : null;
+const pcsTxt = x => x >= 2 ? String(Math.round(x)) : String(Math.round(x * 10) / 10).replace('.', ',');
+const pcsLbl = e => e.pcl || 'szt.';
 function qtyChip(e) {
   const q = e.q || 1;
-  if (e.g && !counted(e.u)) return `${g0(q * e.g)} ${sfx(e.u)}`;
+  if (e.g && (e.pc || !counted(e.u))) return `${g0(q * e.g)} ${sfx(e.u)}` + (e.pc ? ` · ${pcsTxt(q * e.g / e.pc)} ${pcsLbl(e)}` : '');
   return Math.abs(q - 1) < 1e-9 ? '' : '×' + frac(q);
 }
 function qtyLong(e) {
   const q = e.q || 1;
-  if (e.g && !counted(e.u)) return `${g0(q * e.g)} ${sfx(e.u)}`;
+  if (e.g && (e.pc || !counted(e.u))) return `${g0(q * e.g)} ${sfx(e.u)}` + (e.pc ? ` ≈ ${pcsTxt(q * e.g / e.pc)} ${pcsLbl(e)}` : '');
   if (e.u) return `${frac(q)} × ${e.u}` + (e.g ? ` ≈ ${q * e.g < 10 ? d1(q * e.g) : g0(q * e.g)} g` : '');
   return Math.abs(q - 1) < 1e-9 ? '1 porcja' : `${frac(q)} porcji`;
 }
-const unitTxt = f => !f.u ? '' : f.g && counted(f.u) ? `${f.u} ≈ ${d1(f.g)} g` : f.u;
+const unitTxt = f => !f.u ? '' : (f.g && counted(f.u) ? `${f.u} ≈ ${d1(f.g)} g` : f.u) +
+  (f.pc && f.g ? (f.pc > f.g ? ` · 1 szt. ≈ ${d1(f.pc)} g` : ` ≈ ${pcsTxt(f.g / f.pc)} ${f.pcl || 'szt.'}`) : '');
 const norm = s => String(s).toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/ł/g, 'l');
 const macroTxt = x => `${k0(x.k)} kcal · ${g0(x.b)} B · ${g0(x.t)} T · ${g0(x.w)} W`;
 const newId = () => 'e' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
@@ -826,6 +871,8 @@ try {
   if (raw) { const o = JSON.parse(raw); S.days = o.days || {}; S.foods = normFoods(o.foods); S.settings = o.settings || {}; }
 } catch (e) { S.banner = 'Ta przeglądarka blokuje zapis. Otwórz stronę w Safari (nie w trybie prywatnym).'; }
 if (!S.settings.targets) S.settings.targets = {};
+if (!S.settings.slots) S.settings.slots = {};
+if (!S.settings.customSlots) S.settings.customSlots = [];
 const dump = () => JSON.stringify({ v: 1, days: S.days, foods: S.foods, settings: S.settings });
 let saveT = null;
 function persist() {
@@ -844,7 +891,7 @@ function buildFoods() {
   const rm = new Set(S.foods.removed);
   FOODS = BASE_FOODS.filter(f => !rm.has(f.id)).map(f => ({ ...f, ...(S.foods.edits[f.id] || {}) }))
     .concat(S.foods.added.filter(f => !rm.has(f.id)).map(f => ({ ...f })))
-    .map(f => { if (!f.L) delete f.L; if (!f.g) delete f.g; if (!f.u) delete f.u; if (!f.r) delete f.r; if (!CATM[f.c]) f.c = 'moje'; return f; });
+    .map(f => { if (!f.L) delete f.L; if (!f.g) delete f.g; if (!f.pc) delete f.pc; if (!f.u) delete f.u; if (!f.r) delete f.r; if (!CATM[f.c]) f.c = 'moje'; return f; });
   FM = Object.fromEntries(FOODS.map(f => [f.id, f]));
 }
 buildFoods();
@@ -858,12 +905,32 @@ function snap(f, v) {
   if (f.L) o.v = v === 'L' ? 'L' : 'P';
   if (f.u) o.u = f.u;
   if (f.g) o.g = f.g;
+  if (f.pc) { o.pc = f.pc; if (f.pcl) o.pcl = f.pcl; }
   return o;
+}
+// Posiłek dnia z ustawieniami użytkownika: zmieniona nazwa / godzina, usunięty (hidden), własne posiłki
+function slotInfo(id) {
+  const base = SLOTS[id] || S.settings.customSlots.find(x => x.id === id) || { n: 'Posiłek', t: '' };
+  const o = S.settings.slots[id] || {};
+  return { id, n: o.n || base.n, t: o.t != null ? o.t : base.t, cs: base.cs || CUSTOM_CS, hidden: !!o.hidden, custom: !SLOTS[id] };
+}
+const allSlotIds = () => [...SLOT_ORDER, ...S.settings.customSlots.map(x => x.id)];
+function sortSlots(ids) {
+  const all = allSlotIds();
+  return ids.sort((a, b) => (slotInfo(a).t || '99').localeCompare(slotInfo(b).t || '99') || all.indexOf(a) - all.indexOf(b));
+}
+// Posiłki widoczne danego dnia: z planu rodzaju dnia + własne; usunięte znikają, chyba że mają wpisy
+function daySlots(d) {
+  return sortSlots(allSlotIds().filter(s => {
+    if (d.items.some(e => e.s === s)) return true;
+    const si = slotInfo(s);
+    return !si.hidden && (si.custom || s in TYPES[d.type].slots);
+  }));
 }
 function template(type) {
   const ty = TYPES[type], out = [];
   let i = 0;
-  for (const s of SLOT_ORDER) for (const id of (ty.slots[s] || [])) {
+  for (const s of SLOT_ORDER) for (const id of (slotInfo(s).hidden ? [] : ty.slots[s] || [])) {
     if (FM[id]) out.push({ id: 't' + i++, s, ...snap(FM[id], ty.v), q: 1, ok: false, p: true });
   }
   return out;
@@ -991,11 +1058,10 @@ function dayHTML() {
     `<div class="bar pr"><i style="width:${pct(eaten.b, ty.b)}%"></i></div>` +
     (pending ? `<div class="plan"><span>Z resztą planu: ~${k0(all.k)} kcal · ${g0(all.b)} B</span><button type="button" class="linkbtn" data-act="allok">✓ Wszystko zjedzone</button></div>` : '') +
     `</section>`;
-  const slots = SLOT_ORDER.filter(s => s in TYPES[d.type].slots || d.items.some(e => e.s === s));
-  for (const s of slots) {
-    const its = d.items.filter(e => e.s === s), sl = SLOTS[s];
+  for (const s of daySlots(d)) {
+    const its = d.items.filter(e => e.s === s), sl = slotInfo(s);
     const se = sumOf(its.filter(e => e.ok));
-    h += `<section class="slot" aria-label="${esc(sl.n)}"><div class="slot-h"><h3>${sl.t ? `<span class="tm">${sl.t}</span>` : ''}${esc(sl.n)}</h3>` +
+    h += `<section class="slot" aria-label="${esc(sl.n)}"><div class="slot-h"><h3><button type="button" class="sl-title" data-sedit="${s}" aria-label="Zmień posiłek: ${esc(sl.n)}">${sl.t ? `<span class="tm">${sl.t}</span>` : ''}${esc(sl.n)}</button></h3>` +
       `<span class="sk">${se.k ? k0(se.k) + ' kcal' : ''}</span>` +
       `<button type="button" class="addb" data-add="${s}" aria-label="Dodaj: ${esc(sl.n)}">+</button></div>`;
     for (const e of its) h += itemHTML(e);
@@ -1004,6 +1070,14 @@ function dayHTML() {
   }
   return h + daySumHTML(d, date) + settingsHTML();
 }
+// Pola „g” i „szt.” — wpisanie jednego przelicza ilość; w oknie „Dodaj” mają id pk-grams / pk-pcs
+function qtyInputs(e, ga, pa, id) {
+  const q = e.q || 1, pcs = pcsOf(e);
+  const attr = (a, v) => a === 'id' ? `id="${v}"` : `${a}="${id}"`;
+  return (e.g ? `<label class="gin"><input ${attr(ga, 'pk-grams')} inputmode="decimal" autocomplete="off" value="${g0(q * e.g)}" aria-label="Ilość w ${sfx(e.u)}"> ${sfx(e.u)}</label>` : '') +
+    (pcs != null ? `<label class="gin"><input ${attr(pa, 'pk-pcs')} inputmode="decimal" autocomplete="off" value="${pcsTxt(pcs)}" aria-label="Ilość w sztukach"> ${esc(pcsLbl(e))}</label>` : '');
+}
+const qFromPcs = (e, v) => e.pc && e.g ? v * e.pc / e.g : v;
 const recipeHTML = r => `<details class="rcp"><summary>Przepis</summary><ol>${r.split('\n').map(x => x.trim()).filter(Boolean).map(x => `<li>${esc(x)}</li>`).join('')}</ol></details>`;
 // Skład zawsze widoczny w całości (bez ucinania); przy kolacji LIGHT — także co inaczej
 function compHTML(f, v) {
@@ -1025,7 +1099,7 @@ function itemHTML(e) {
       `<div class="qchips" role="group" aria-label="Ilość">${chipsFor(e).map(c => `<button type="button" data-setq="${e.id}" data-q="${c}" aria-pressed="${Math.abs(q - c) < 1e-9}">${frac(c)}</button>`).join('')}</div>` +
       `<div class="ctl"><div class="qty"><button type="button" class="step" data-qty="${e.id}" data-dir="-1" aria-label="Mniej">−</button>` +
       `<output aria-label="Ilość">${frac(q)}</output><button type="button" class="step" data-qty="${e.id}" data-dir="1" aria-label="Więcej">+</button></div>` +
-      (e.g ? `<label class="gin"><input data-grams="${e.id}" inputmode="decimal" autocomplete="off" value="${g0(q * e.g)}" aria-label="Ilość w ${sfx(e.u)}"> ${sfx(e.u)}</label>` : '') + `</div>` +
+      qtyInputs(e, 'data-grams', 'data-pcs', e.id) + `</div>` +
       `<div class="ctl">` + (f && f.L ? `<div class="seg" role="group" aria-label="Wersja"><button type="button" data-var="${e.id}" data-v="L" aria-pressed="${e.v === 'L'}">LIGHT</button><button type="button" data-var="${e.id}" data-v="P" aria-pressed="${e.v !== 'L'}">PEŁNA</button></div>` : '') +
       `<button type="button" class="rm" data-rm="${e.id}">Usuń</button></div></div>`;
   }
@@ -1118,7 +1192,14 @@ function prodHTML() {
 }
 
 function settingsHTML() {
-  return `<details class="settings" id="settings" ${S.setOpen ? 'open' : ''}><summary>Cele dnia, kopia zapasowa</summary><div class="body">` +
+  const vis = sortSlots(allSlotIds().filter(x => !slotInfo(x).hidden)), hid = allSlotIds().filter(x => slotInfo(x).hidden);
+  const sname = x => { const si = slotInfo(x); return `${si.t ? si.t + ' · ' : ''}${esc(si.n)}${x === 'post14' ? ' <small>(dzień postu)</small>' : x === 'jog' ? ' <small>(poza postem)</small>' : ''}`; };
+  return `<details class="settings" id="settings" ${S.setOpen ? 'open' : ''}><summary>Posiłki dnia, cele, kopia zapasowa</summary><div class="body">` +
+    `<p><b>Posiłki dnia</b> — zmień nazwę lub godzinę, usuń albo dodaj własny. Kolejność według godziny.</p>` +
+    `<div class="rmlist">${vis.map(x => `<div><span>${sname(x)}</span><button type="button" class="btn2 sm" data-sedit="${x}">Zmień</button></div>`).join('')}</div>` +
+    (hid.length ? `<p>Usunięte:</p><div class="rmlist">${hid.map(x => `<div><span>${sname(x)}</span><button type="button" class="btn2 sm" data-srestore="${x}">Przywróć</button></div>`).join('')}</div>` : '') +
+    `<div class="btnrow"><button type="button" class="btn2" data-act="snew">+ Dodaj posiłek</button></div>` +
+    `<p><b>Cele dnia</b></p>` +
     `<p>Cel jedzenia, białko i wydatek (Garmin) dla każdego rodzaju dnia. Domyślnie z planu: tydzień ~18 250 kcal przy wydatku ~17 150 (nadwyżka ~+155 na dzień).</p>` +
     `<div class="tg"><span></span>${TG_FIELDS.map(([, l]) => `<span class="h">${l}</span>`).join('')}` +
     Object.keys(TYPES).map(k => `<span>${esc(TYPES[k].n)}</span>` + TG_FIELDS.map(([f, l]) =>
@@ -1141,7 +1222,7 @@ function openPicker(slot) {
   PK.slot = slot;
   PK.added = [];
   pkBar();
-  $('#pk-h').textContent = 'Dodaj · ' + SLOTS[slot].n;
+  $('#pk-h').textContent = 'Dodaj · ' + slotInfo(slot).n;
   $('#pk-q').value = '';
   $('#pk-own').open = false;
   for (const k of ['n', 'k', 'b', 't', 'w']) $('#ow-' + k).value = '';
@@ -1161,7 +1242,7 @@ function pickRow(f, dv) {
 }
 function pickList() {
   const q = norm($('#pk-q').value.trim());
-  const cs = SLOTS[PK.slot].cs, dv = T(dayOf(S.date).type).v;
+  const cs = slotInfo(PK.slot).cs, dv = T(dayOf(S.date).type).v;
   let h = '', chips = [];
   if (q) {
     const hits = FOODS.filter(f => norm(f.n + ' ' + (f.d || '')).includes(q));
@@ -1198,10 +1279,10 @@ function pkBar() {
   $('#pk-bar').hidden = !last;
   if (!last) return;
   const q = last.q || 1, all = sumOf(es);
-  $('#pk-last').innerHTML = `<b>✓ ${esc(last.n)}</b>${qtyChip(last) ? `<i class="vr">${esc(qtyChip(last))}</i>` : ''}` +
-    `<small>${k0(last.k * q)} kcal · ${g0(last.b * q)} B${es.length > 1 ? ` · dodano ${es.length}, razem ${k0(all.k)} kcal` : ''}</small>`;
+  $('#pk-last').innerHTML = `<b>✓ ${esc(last.n)}</b>` +
+    `<small>${qtyChip(last) ? esc(qtyChip(last)) + ' · ' : ''}${k0(last.k * q)} kcal · ${g0(last.b * q)} B${es.length > 1 ? ` · dodano ${es.length}, razem ${k0(all.k)} kcal` : ''}</small>`;
   $('#pk-chips').innerHTML = chipsFor(last).map(c => `<button type="button" data-pkq="${c}" aria-pressed="${Math.abs(q - c) < 1e-9}">${frac(c)}</button>`).join('') +
-    (last.g ? `<label class="gin"><input id="pk-grams" inputmode="decimal" autocomplete="off" value="${g0(q * last.g)}" aria-label="Ilość w ${sfx(last.u)}"> ${sfx(last.u)}</label>` : '');
+    qtyInputs(last, 'id', 'id', null);
 }
 function pkSetQ(q) {
   const { last } = pkLast();
@@ -1239,7 +1320,7 @@ FF('c').innerHTML = CATS.map(([id, n]) => `<option value="${id}">${esc(n)}</opti
 function lboxSync() { $('#fed-L').hidden = !FF('hasL').checked; }
 function fillFood(f) {
   FF('n').value = f.n || ''; FF('c').value = f.c || 'moje'; FF('d').value = f.d || '';
-  FF('u').value = f.u || ''; FF('gw').value = f.g ? d1(f.g) : ''; FF('r').value = f.r || '';
+  FF('u').value = f.u || ''; FF('gw').value = f.g ? d1(f.g) : ''; FF('pcw').value = f.pc ? d1(f.pc) : ''; FF('r').value = f.r || '';
   for (const x of ['k', 'b', 't', 'w']) { FF(x).value = d1(f[x]); FF('L' + x).value = f.L ? d1(f.L[x]) : ''; }
   FF('Ld').value = f.L ? f.L.d || '' : '';
   FF('hasL').checked = !!f.L;
@@ -1262,6 +1343,8 @@ function readFood() {
   const bad = (k, t) => { $('#fed-err').textContent = t; FF(k).focus(); return null; };
   const v = { n: g('n'), c: g('c'), d: g('d'), u: g('u'), r: FF('r').value.split('\n').map(x => x.trim()).filter(Boolean).join('\n') };
   if (!v.n) return bad('n', 'Wpisz nazwę.');
+  if (g('pcw') === '') v.pc = null;
+  else { v.pc = num(g('pcw')); if (!(v.pc > 0 && v.pc <= 5000)) return bad('pcw', 'Waga sztuki w gramach — liczba albo puste.'); }
   if (g('gw') === '') v.g = null;
   else { v.g = num(g('gw')); if (!(v.g > 0 && v.g <= 5000)) return bad('gw', 'Waga jednostki w gramach — liczba albo puste.'); }
   const nums = (pre, o) => {
@@ -1288,15 +1371,15 @@ function saveFood() {
   const id = FE.id;
   if (id && BASEM[id]) {
     const b = BASEM[id], d = {};
-    for (const k of ['n', 'c', 'u', 'g', 'k', 'b', 't', 'w', 'd', 'r', 'L']) if (!same(v[k] === '' ? null : v[k], b[k] === '' ? null : b[k])) d[k] = v[k];
+    for (const k of ['n', 'c', 'u', 'g', 'pc', 'k', 'b', 't', 'w', 'd', 'r', 'L']) if (!same(v[k] === '' ? null : v[k], b[k] === '' ? null : b[k])) d[k] = v[k];
     if (Object.keys(d).length) S.foods.edits[id] = d; else delete S.foods.edits[id];
   } else if (id) {
     const a = S.foods.added.find(x => x.id === id);
     Object.assign(a, v);
-    for (const k of ['L', 'g', 'u', 'r']) if (!a[k]) delete a[k];
+    for (const k of ['L', 'g', 'u', 'r', 'pc']) if (!a[k]) delete a[k];
   } else {
     const f = { id: 'U' + Date.now().toString(36), ...v };
-    for (const k of ['L', 'g', 'u', 'r']) if (!f[k]) delete f[k];
+    for (const k of ['L', 'g', 'u', 'r', 'pc']) if (!f[k]) delete f[k];
     S.foods.added.push(f);
   }
   buildFoods(); persist(); closeDlg($('#fed')); render(true);
@@ -1309,6 +1392,57 @@ function removeFood(id) {
   render(true);
 }
 function restoreFood(id) { S.foods.removed = S.foods.removed.filter(x => x !== id); buildFoods(); persist(); render(true); }
+
+/* ---------- Edytor posiłku dnia ---------- */
+const SE = { id: null };
+const sform = $('#sed-form');
+const FS = n => sform.elements[n];
+function openSlot(id) {
+  SE.id = id;
+  const si = id ? slotInfo(id) : { n: '', t: '' };
+  FS('n').value = si.n; FS('t').value = si.t || '';
+  $('#sed-h').textContent = id ? 'Posiłek' : 'Nowy posiłek';
+  $('#sed-err').textContent = '';
+  const del = $('[data-act="sed-del"]', sform);
+  del.hidden = !id; delete del.dataset.armed; del.classList.remove('armed'); del.textContent = 'Usuń posiłek';
+  $('[data-act="sed-base"]', sform).hidden = !(id && SLOTS[id] && S.settings.slots[id] && (S.settings.slots[id].n || S.settings.slots[id].t != null));
+  showDlg($('#sed'));
+  if (!id) setTimeout(() => FS('n').focus(), 50);
+}
+function saveSlot() {
+  const n = FS('n').value.trim(), t = FS('t').value.trim();
+  if (!n) { $('#sed-err').textContent = 'Wpisz nazwę posiłku.'; FS('n').focus(); return; }
+  if (t && !/^\d{2}:\d{2}$/.test(t)) { $('#sed-err').textContent = 'Godzina w formacie GG:MM.'; FS('t').focus(); return; }
+  const id = SE.id;
+  if (!id) S.settings.customSlots.push({ id: 'X' + Date.now().toString(36), n, t });
+  else if (SLOTS[id]) {
+    const o = { ...(S.settings.slots[id] || {}) };
+    if (n !== SLOTS[id].n) o.n = n; else delete o.n;
+    if (t !== SLOTS[id].t) o.t = t; else delete o.t;
+    if (Object.keys(o).length) S.settings.slots[id] = o; else delete S.settings.slots[id];
+  } else Object.assign(S.settings.customSlots.find(x => x.id === id), { n, t });
+  persist(); closeDlg($('#sed')); render(true);
+}
+// Usunięcie zdejmuje niezjedzone pozycje planu z dziś i kolejnych dni; przywrócenie dodaje je z powrotem. Minione dni bez zmian.
+function setSlotHidden(id, hidden) {
+  const o = { ...(S.settings.slots[id] || {}) };
+  if (hidden) o.hidden = true; else delete o.hidden;
+  if (Object.keys(o).length) S.settings.slots[id] = o; else delete S.settings.slots[id];
+  const today = todayISO();
+  for (const [date, d] of Object.entries(S.days)) {
+    if (date < today) continue;
+    if (hidden) d.items = d.items.filter(e => !(e.s === id && e.p && !e.ok));
+    else for (const e of template(d.type)) if (e.s === id && !d.items.some(x => x.s === id && x.f === e.f)) d.items.push({ ...e, id: newId() });
+  }
+  persist();
+}
+function removeSlot(id) {
+  const nm = slotInfo(id).n;
+  setSlotHidden(id, true); closeDlg($('#sed'));
+  S.toast = { view: 'dzien', text: `Usunięto posiłek „${nm}”.`, undo: () => { setSlotHidden(id, false); render(true); } };
+  render(true);
+}
+sform.addEventListener('submit', ev => { ev.preventDefault(); saveSlot(); });
 
 /* ---------- Kopia zapasowa ---------- */
 async function exportData() {
@@ -1337,6 +1471,8 @@ function importData(file) {
       if (!o || o.app !== 'jedzenie-dziennik' || typeof o.days !== 'object') throw new Error('format');
       S.days = o.days; S.foods = normFoods(o.foods); S.settings = o.settings || {};
       if (!S.settings.targets) S.settings.targets = {};
+      if (!S.settings.slots) S.settings.slots = {};
+      if (!S.settings.customSlots) S.settings.customSlots = [];
       buildFoods(); persist(); S.setOpen = true; render(true);
       $('#io-msg').textContent = `Wczytano kopię z ${String(o.saved || '').slice(0, 10)}.`;
     } catch (e) { $('#io-msg').textContent = 'To nie jest plik kopii z tej aplikacji.'; }
@@ -1386,6 +1522,8 @@ document.addEventListener('click', ev => {
     return;
   }
   if (ds.fedit) { openFood(ds.fedit); return; }
+  if (ds.sedit) { openSlot(ds.sedit); return; }
+  if (ds.srestore) { setSlotHidden(ds.srestore, false); render(true); return; }
   if (ds.frestore) { restoreFood(ds.frestore); return; }
   switch (ds.act) {
     case 'today': goDate(todayISO()); return;
@@ -1406,6 +1544,12 @@ document.addEventListener('click', ev => {
       if (!ds.armed) { ds.armed = '1'; t.textContent = 'Na pewno usunąć?'; t.classList.add('armed'); return; }
       removeFood(FE.id); return;
     case 'tgreset': S.settings.targets = {}; persist(); render(true); return;
+    case 'snew': openSlot(null); return;
+    case 'sed-cancel': closeDlg($('#sed')); return;
+    case 'sed-base': FS('n').value = SLOTS[SE.id].n; FS('t').value = SLOTS[SE.id].t; return;
+    case 'sed-del':
+      if (!ds.armed) { ds.armed = '1'; t.textContent = 'Na pewno usunąć?'; t.classList.add('armed'); return; }
+      removeSlot(SE.id); return;
     case 'export': exportData(); return;
     case 'import': $('#import-file').click(); return;
   }
@@ -1430,6 +1574,12 @@ document.addEventListener('change', ev => {
     return;
   }
   if (t.id === 'pk-grams') { const { last } = pkLast(); const v = num(t.value); if (last && last.g && v > 0) pkSetQ(v / last.g); return; }
+  if (t.dataset && t.dataset.pcs) {
+    const v = num(t.value);
+    change(d => { const e = findE(d, t.dataset.pcs); if (e && v > 0) { e.q = Math.min(50, Math.round(qFromPcs(e, v) * 1000) / 1000); e.p = false; } });
+    return;
+  }
+  if (t.id === 'pk-pcs') { const { last } = pkLast(); const v = num(t.value); if (last && v > 0) pkSetQ(qFromPcs(last, v)); return; }
 });
 document.addEventListener('input', ev => {
   const t = ev.target;
@@ -1449,7 +1599,7 @@ document.addEventListener('toggle', ev => {
 }, true);
 $('#own-form').addEventListener('submit', ev => { ev.preventDefault(); addOwn(); });
 // Enter w polu gramów: zatwierdź bez wysyłania formularza
-document.addEventListener('keydown', ev => { if (ev.key === 'Enter' && (ev.target.id === 'pk-grams' || (ev.target.dataset && (ev.target.dataset.grams || ev.target.dataset.burn)))) { ev.preventDefault(); ev.target.blur(); } });
+document.addEventListener('keydown', ev => { if (ev.key === 'Enter' && (ev.target.id === 'pk-grams' || ev.target.id === 'pk-pcs' || (ev.target.dataset && (ev.target.dataset.grams || ev.target.dataset.pcs || ev.target.dataset.burn)))) { ev.preventDefault(); ev.target.blur(); } });
 fform.addEventListener('submit', ev => { ev.preventDefault(); saveFood(); });
 $('#import-file').addEventListener('change', ev => { const f = ev.target.files && ev.target.files[0]; if (f) importData(f); ev.target.value = ''; });
 window.addEventListener('hashchange', () => render());
