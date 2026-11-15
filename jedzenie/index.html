@@ -161,6 +161,9 @@ main { padding-block: 10px 120px; display: grid; gap: 8px; }
 .qchips button { min-width: 36px; height: 38px; padding: 0 6px; border: 1px solid var(--line); border-radius: 999px; background: var(--bg); font-weight: 700; font-size: 0.95rem; }
 .qchips button[aria-pressed="true"] { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
 .gin { display: inline-flex; align-items: center; gap: 6px; color: var(--muted); font-weight: 600; font-size: 0.9rem; }
+.kgrow { display: flex; justify-content: space-between; align-items: center; gap: 8px 12px; flex-wrap: wrap; background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); padding: 10px 12px; font-size: 0.92rem; }
+.kgrow.todo { border-color: var(--accent); }
+.kgrow small { display: block; color: var(--muted); }
 .gin input { width: 5.2rem; min-height: 40px; border: 1px solid var(--line); border-radius: 10px; background: var(--bg); color: var(--ink); text-align: center; font-size: 16px; font-variant-numeric: tabular-nums; }
 .rm { border: 1px solid var(--line); background: none; color: var(--low); border-radius: 10px; height: 40px; padding: 0 12px; font-weight: 600; margin-left: auto; }
 .emptyb { display: block; border: 0; border-top: 1px solid var(--line); background: none; color: var(--accent); font-weight: 600; min-height: 44px; padding: 0; width: 100%; text-align: left; }
@@ -969,6 +972,7 @@ const DEF_TYPE = ['nd', 'sil', 'sil', 'bieg', 'sil', 'sil', 'sob']; // według g
 const TG_FIELDS = [['act', 'wydatek'], ['plus', 'nadwyżka'], ['b', 'białko']];
 // Bez aktywności (spoczynek + minimum ruchu, z zegarka) i masa, przy której to odczytano; ~12 kcal na każdy kg (nachylenie BMR × ~1,2)
 const BASE_DEF = { k: 2015, kg: 71 }, KCAL_PER_KG = 12;
+const WEIGH_DAY = 5; // ważenie w piątek rano — pole wagi na górze dnia
 
 /* ---------- Pomocnicze ---------- */
 const $ = (s, el = document) => el.querySelector(s);
@@ -1184,6 +1188,8 @@ function burnLearn() {
 }
 const kgFmt = x => String(Math.round(x * 10) / 10).replace('.', ',');
 const pomTxt = n => n === 1 ? 'pomiar' : n % 10 >= 2 && n % 10 <= 4 && (n % 100 < 12 || n % 100 > 14) ? 'pomiary' : 'pomiarów';
+// Skąd masa: jeden pomiar (zwykle piątkowy) albo średnia z kilku z 7 dni
+const kgSrc = w => !w.n ? 'z ustawień — brak pomiarów' : w.n === 1 ? `pomiar z ${dm(w.last)}` : `średnia z ${w.n} pomiarów (7 dni do ${dm(w.last)})`;
 const baseSet = () => ({ ...BASE_DEF, ...(S.settings.base || {}) });
 function weighIns() {
   if (!KG) KG = Object.entries(S.days).filter(([, d]) => d.kg > 0).map(([date, d]) => [date, d.kg]).sort((a, b) => a[0] < b[0] ? -1 : 1);
@@ -1237,6 +1243,7 @@ function statsHTML(st, what) {
     `<p>Bilans: <b>${sgn(bal)} kcal</b> · ${sgn(bal / n)} / dzień · ≈ <b>${kgTxt(bal / 7700)} kg</b> <small>(7700 kcal ≈ 1 kg)</small></p></section>`;
 }
 // Podsumowanie dnia: zjedzone vs cel, udział w energii, wydatek (przewidywany lub z zegarka) i bilans
+const kgInput = (d, date, l) => `<label class="gin">${l} <input data-kg="${date}" inputmode="decimal" autocomplete="off" placeholder="—" value="${d.kg ? kgFmt(d.kg) : ''}" aria-label="Waga rano w kg"> kg</label>`;
 function daySumHTML(d, date) {
   const g = goalOf(d, date), e = eatenOf(d), bal = e.k - g.burn, act = T(d.type).act, w = weightAt(date);
   const row = (name, v, unit, goal, kc) => `<tr><th>${name}</th><td>${k0(v)}${unit}</td><td>${k0(goal)}${unit}</td><td>${kc ? pctE(v * kc, e.k) + '%' : ''}</td></tr>`;
@@ -1247,8 +1254,8 @@ function daySumHTML(d, date) {
     `<h3>Wydatek i bilans</h3>` +
     `<div class="burn"><span>Przewidywany: <b>${k0(predBurn(d.type, date))} kcal</b><small>bez aktywności ${k0(baseAt(date))} ${act < 0 ? '−' : '+'} aktywność ${k0(Math.abs(act))} (${esc(TYPES[d.type].n.toLowerCase())})</small></span>` +
     `<label class="gin">Z zegarka <input data-burn="${date}" inputmode="numeric" autocomplete="off" placeholder="—" value="${d.burn != null ? d.burn : ''}" aria-label="Wydatek z zegarka w kcal"> kcal</label></div>` +
-    `<div class="burn"><span>Masa: <b>${kgFmt(w.kg)} kg</b><small>${w.n ? `średnia z ${w.n} ${w.n === 1 ? 'pomiaru' : 'pomiarów'} (7 dni do ${dm(w.last)})` : 'z ustawień — brak pomiarów'}</small></span>` +
-    `<label class="gin">Waga rano <input data-kg="${date}" inputmode="decimal" autocomplete="off" placeholder="—" value="${d.kg ? kgFmt(d.kg) : ''}" aria-label="Waga rano w kg"> kg</label></div>` +
+    `<div class="burn"><span>Masa: <b>${kgFmt(w.kg)} kg</b><small>${kgSrc(w)}</small></span>` +
+    (parseD(date).getDay() === WEIGH_DAY ? '' : kgInput(d, date, 'Waga rano')) + `</div>` +
     `<p>Cel jedzenia: <b>${k0(g.kcal)} kcal</b> <small>= wydatek ${k0(g.burn)}${d.burn != null ? ' z zegarka' : ''} ${g.plus < 0 ? '−' : '+'} ${k0(Math.abs(g.plus))} (${plusTxt(g.plus).split(' ')[0]})</small></p>` +
     `<p>Bilans: <b>${sgn(bal)} kcal</b> <small>(zjedzone ${k0(e.k)} − wydatek ${k0(g.burn)}${d.burn != null ? ' z zegarka' : ' przewidywany'}${date === todayISO() ? ' · dzień trwa' : ''})</small></p></section>`;
 }
@@ -1262,6 +1269,7 @@ function dayHTML() {
     `<button type="button" class="navb" data-day="1" aria-label="Następny dzień">›</button></div>`;
   h += `<div class="dtype"><label for="dtype">Rodzaj dnia</label><select id="dtype">` +
     Object.keys(TYPES).map(k => `<option value="${k}" ${k === d.type ? 'selected' : ''}>${esc(TYPES[k].n)} · ${k0(goalOf({ type: k, burn: d.burn }, date).kcal)}</option>`).join('') + `</select></div>`;
+  if (parseD(date).getDay() === WEIGH_DAY) h += `<div class="kgrow${d.kg ? '' : ' todo'}"><span><b>Ważenie</b><small>${d.kg ? 'liczy się do wydatku i celu do następnego piątku' : 'rano, po toalecie, przed jedzeniem'}</small></span>${kgInput(d, date, 'Waga')}</div>`;
   const left = ty.kcal - eaten.k;
   const pending = d.items.some(e => !e.ok);
   h += `<section class="sum" aria-label="Podsumowanie dnia">` +
@@ -1361,7 +1369,9 @@ function weekPlanHTML(dates) {
     `<p>Wydatek: ${nw === n ? 'cały z zegarka' : nw ? `z zegarka ${nw} z ${n} dni, reszta przewidywana` : 'przewidywany'} · ${plus < 0 ? 'deficyt' : 'nadwyżka'} ${sgn(plus / n)} / dzień ≈ ${kgTxt(plus / 7700)} kg</p>`;
   const avg = a => a.reduce((x, y) => x + y, 0) / a.length;
   const wk = dates.map(x => S.days[x] && S.days[x].kg).filter(Boolean), pw = dates.map(x => S.days[addD(x, -7)] && S.days[addD(x, -7)].kg).filter(Boolean);
-  if (wk.length) h += `<p>Masa: śr. <b>${kgFmt(avg(wk))} kg</b> (${wk.length} ${pomTxt(wk.length)})${pw.length ? ` · tydzień wcześniej ${kgFmt(avg(pw))} (${kgTxt(avg(wk) - avg(pw))} kg)` : ''}</p>`;
+  const wkd = dates.filter(x => S.days[x] && S.days[x].kg);
+  if (wk.length) h += `<p>Masa: <b>${kgFmt(avg(wk))} kg</b> (${wk.length === 1 ? `pomiar ${dm(wkd[0])}` : `śr. z ${wk.length} pomiarów`})${pw.length ? ` · tydzień wcześniej ${kgFmt(avg(pw))} (${kgTxt(avg(wk) - avg(pw))} kg)` : ''}</p>`;
+  else { const w = weightAt(dates[n - 1]); h += `<p>Masa: ${w.n ? `${kgFmt(w.kg)} kg (ostatni pomiar ${dm(w.last)})` : 'brak pomiarów'} · ważenie w piątek</p>`; }
   if (nd) h += `<p>${nr ? 'Dotąd' : 'Zjedzone'} (${nd} ${dniTxt(nd)} z wpisami): <b>${k0(de)}</b> z planu ${k0(dg)} kcal <small>(${sgn(de - dg)})</small></p>`;
   if (nr && nd) {
     // różnica z minionych dni rozłożona po równo na dziś i resztę tygodnia — dopisek do celu każdego dnia
@@ -1395,7 +1405,7 @@ function monthHTML() {
       `<span class="n">${dm(dates[0])} – ${dm(dates[dates.length - 1])}<small>${st.n ? `${st.n} ${dniTxt(st.n)} z wpisami` : 'brak zakończonych dni'}</small></span>` +
       `<span class="v">${st.n ? k0(avg) : '—'} <small>/ ${k0(goal)} śr.</small></span>` +
       `<span class="bar"><i class="${avg > goal * 1.05 ? 'over' : ''}" style="width:${pct(avg, goal)}%"></i></span>` +
-      `<span class="pb">${st.n ? `Białko śr. ${g0(st.b / st.n)} g · T ${g0(st.t / st.n)} · W ${g0(st.w / st.n)}<br>Bilans ${sgn(st.k - st.burn)} kcal · ${sgn((st.k - st.burn) / st.n)} / dzień` : 'średnie po zakończonych dniach'}${wk.length ? `<br>Masa śr. ${kgFmt(wk.reduce((a, x) => a + x, 0) / wk.length)} kg` : ''}</span></button>`;
+      `<span class="pb">${st.n ? `Białko śr. ${g0(st.b / st.n)} g · T ${g0(st.t / st.n)} · W ${g0(st.w / st.n)}<br>Bilans ${sgn(st.k - st.burn)} kcal · ${sgn((st.k - st.burn) / st.n)} / dzień` : 'średnie po zakończonych dniach'}${wk.length ? `<br>Masa ${wk.length > 1 ? 'śr. ' : ''}${kgFmt(wk.reduce((a, x) => a + x, 0) / wk.length)} kg` : ''}</span></button>`;
   }
   return h + statsHTML(stats(all), 'Miesiąc');
 }
@@ -1437,8 +1447,8 @@ const learnTxt = () => {
 };
 const weightTxt = () => {
   const w = weightAt();
-  return (w.n ? `Masa teraz: ${kgFmt(w.kg)} kg — średnia z ${w.n} ${w.n === 1 ? 'pomiaru' : 'pomiarów'} z 7 dni.` : 'Brak pomiarów wagi — liczę z masy powyżej.') +
-    ` Wagę wpisuj w podsumowaniu dnia; bez aktywności zmienia się o ~${KCAL_PER_KG} kcal na każdy kg, a z nim wydatek i cel.`;
+  return (w.n ? `Masa teraz: ${kgFmt(w.kg)} kg — ${kgSrc(w)}.` : 'Brak pomiarów wagi — liczę z masy powyżej.') +
+    ` Wagę wpisuj w piątek rano (pole na górze dnia); bez aktywności zmienia się o ~${KCAL_PER_KG} kcal na każdy kg, a z nim wydatek i cel do następnego pomiaru.`;
 };
 const wkPlanTxt = () => {
   let k = 0, b = 0;
