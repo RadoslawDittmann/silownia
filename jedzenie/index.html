@@ -436,6 +436,7 @@ const BASE_FOODS = [
   { id: 'PR1', c: 'przek', n: 'Przekąska z planu', k: 370, b: 12, t: 16, w: 48, d: '2 kromki pieczywa chrupkiego (20 g), masło orzechowe 20 g, jabłko 180 g, kawa z mlekiem 150 ml' },
 
   { id: 'JG1', c: 'jog', n: 'Jogurt z owsem, owocami i nasionami', k: 500, b: 23, t: 24, w: 43, d: 'Jogurt 3% 200 g, płatki owsiane 40 g, truskawki / maliny 100 g, orzechy włoskie 15 g, chia 7 g, siemię 7 g, błonnik aroniowy 4 g, babka płesznik 3 g, cynamon' },
+  { id: 'JG2', c: 'jog', n: 'Jogurt z owsem i nasionami (bez owoców)', k: 470, b: 22, t: 24, w: 35, d: 'Jogurt 3% 200 g, płatki owsiane 40 g, orzechy włoskie 15 g, chia 7 g, siemię 7 g, błonnik aroniowy 4 g, babka płesznik 3 g, cynamon' },
 
   { id: 'OB1', c: 'obiad', n: 'Obiad — dzień siłowy', k: 635, b: 39, t: 18, w: 78, d: '120 g mięsa lub ryby, 400 g ziemniaków / batatów (lub 90 g ryżu / kaszy), 200 g warzyw, 15 g oliwy' },
   { id: 'OB2', c: 'obiad', n: 'Obiad — dzień biegowy', k: 750, b: 42, t: 18, w: 104, d: '120 g mięsa lub ryby, 550 g ziemniaków / batatów (lub 120 g ryżu / kaszy), 200 g warzyw, 15 g oliwy' },
@@ -490,7 +491,7 @@ const BASE_FOODS = [
   { id: 'P8', c: 'zboza', n: "Ryż biały (suchy)", u: "100 g", g: 100, k: 345, b: 7, t: 0.7, w: 77, d: "" },
   { id: 'P9', c: 'zboza', n: "Ziemniaki", u: "100 g", g: 100, pc: 120, k: 77, b: 1.9, t: 0.1, w: 17, d: "średni ziemniak ≈ 120 g" },
   { id: 'P10', c: 'nabial', n: "Jogurt naturalny 3%", u: "100 g", g: 100, k: 70, b: 6, t: 3, w: 5, d: "" },
-  { id: 'P11', c: 'nabial', n: "Odżywka białkowa (79%)", u: "1 miarka (20 g)", g: 20, k: 76, b: 15.8, t: 1, w: 1, d: "" },
+  { id: 'P11', c: 'nabial', n: "Odżywka białkowa (79%)", u: "20 g", g: 20, k: 76, b: 15.8, t: 1, w: 1, d: "" },
   { id: 'P12', c: 'tluszcze', n: "Oliwa", u: "1 łyżka", g: 10, k: 88.4, b: 0, t: 10, w: 0, d: "" },
   { id: 'P13', c: 'orzechy', n: "Orzechy włoskie", u: "15 g", g: 15, pc: 1.25, pcl: "połówek", k: 98.1, b: 2.3, t: 9.8, w: 2.1, d: "" },
   { id: 'W1', c: 'warzywa', n: "Pomidor", u: "1 szt.", g: 120, k: 22.8, b: 1.1, t: 0.2, w: 4.3, d: "" },
@@ -899,6 +900,7 @@ const RECIPES = {
   S2: ["Odżywkę, kolagen i kreatynę wymieszać z 300 ml wody (shaker albo blender)."],
   SN1: ["Jajko ugotować: 6 min półmiękko, 9 min na twardo.", "Pieczywo posmarować hummusem i posypać pestkami dyni.", "Do tego pomidor, ogórek i awokado; kawa z mlekiem.", "Hummus (~9 porcji po 40 g, lodówka do 5 dni): 240 g ciecierzycy z puszki (odsączonej), 30 g tahini, 40 g oliwy, sok z ½ cytryny, 1 ząbek czosnku, kumin, sól, 40 ml zimnej wody → blender na gładko."],
   JG1: ["Jogurt wymieszać z płatkami, owocami (mogą być mrożone), orzechami, chia, siemieniem, błonnikiem aroniowym i cynamonem.", "Babkę płesznik wsypać do szklanki wody, zamieszać i od razu wypić.", "Bez oliwy — błonnik i wapń tylko w tym posiłku."],
+  JG2: ["Jogurt wymieszać z płatkami, orzechami, chia, siemieniem, błonnikiem aroniowym i cynamonem.", "Babkę płesznik wsypać do szklanki wody, zamieszać i od razu wypić.", "Bez oliwy — błonnik i wapń tylko w tym posiłku."],
   OB1: ["Mięso lub rybę upiec, zgrillować albo ugotować na parze (przyprawy, zioła, bez panierki).", "Ziemniaki ugotować albo zrobić w air fryerze: łódeczki ze skórką + 5 g oliwy (z porcji), przyprawy, 200 °C, 18–22 min, potrząsnąć w połowie.", "Resztę oliwy dodać na zimno do warzyw / surówki."],
   OB2: ["Jak obiad siłowy, tylko 550 g ziemniaków / batatów (albo 120 g ryżu / kaszy)."],
   OB3: ["Rybę upiec w 180–200 °C przez 12–15 min albo usmażyć na 5 g oliwy.", "Ziemniaki ugotować albo zrobić w air fryerze (jak w obiedzie siłowym).", "Do tego 200 g warzyw lub surówki."],
