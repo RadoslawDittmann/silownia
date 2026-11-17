@@ -164,6 +164,8 @@ main { padding-block: 10px 120px; display: grid; gap: 8px; }
 .kgrow { display: flex; justify-content: space-between; align-items: center; gap: 8px 12px; flex-wrap: wrap; background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); padding: 10px 12px; font-size: 0.92rem; }
 .kgrow.todo { border-color: var(--accent); }
 .kgrow small { display: block; color: var(--muted); }
+.kgin { display: flex; flex-wrap: wrap; gap: 8px 14px; }
+.kgin .gin input { width: 4.6rem; }
 .gin input { width: 5.2rem; min-height: 40px; border: 1px solid var(--line); border-radius: 10px; background: var(--bg); color: var(--ink); text-align: center; font-size: 16px; font-variant-numeric: tabular-nums; }
 .rm { border: 1px solid var(--line); background: none; color: var(--low); border-radius: 10px; height: 40px; padding: 0 12px; font-weight: 600; margin-left: auto; }
 .emptyb { display: block; border: 0; border-top: 1px solid var(--line); background: none; color: var(--accent); font-weight: 600; min-height: 44px; padding: 0; width: 100%; text-align: left; }
@@ -1014,8 +1016,11 @@ const TYPES = {
 const DEF_TYPE = ['nd', 'sil', 'sil', 'bieg', 'sil', 'sil', 'sob']; // według getDay(): nd, pon, wt… (zmiana w ustawieniach → settings.wk)
 const TG_FIELDS = [['act', 'wydatek'], ['plus', 'nadwyżka'], ['b', 'białko']];
 // Bez aktywności (spoczynek + minimum ruchu, z zegarka) i masa, przy której to odczytano; ~12 kcal na każdy kg (nachylenie BMR × ~1,2)
-const BASE_DEF = { k: 2015, kg: 71 }, KCAL_PER_KG = 12;
-const WEIGH_DAY = 5; // ważenie w piątek rano — pole wagi na górze dnia
+// Z pomiarem tłuszczu: ~15 kcal na kg masy beztłuszczowej i ~5 na kg tłuszczu (bf = % tłuszczu, przy którym ustawione są cele)
+const BASE_DEF = { k: 2015, kg: 71, bf: 15 }, KCAL_PER_KG = 12, KCAL_LEAN = 15, KCAL_FAT = 5;
+const WEIGH_DAY = 5; // pole ważenia jest na górze każdego dnia, w piątek wyróżnione
+// Cel: przyrost mięśni przy 12–15% tłuszczu (średnia 7 dni) — powyżej 15% bez nadwyżki (utrzymanie), poniżej 12% nadwyżka +100
+const BF_LO = 12, BF_HI = 15, BF_UP = 100;
 
 /* ---------- Pomocnicze ---------- */
 const $ = (s, el = document) => el.querySelector(s);
@@ -1236,31 +1241,51 @@ function burnLearn() {
 }
 const kgFmt = x => String(Math.round(x * 10) / 10).replace('.', ',');
 const pomTxt = n => n === 1 ? 'pomiar' : n % 10 >= 2 && n % 10 <= 4 && (n % 100 < 12 || n % 100 > 14) ? 'pomiary' : 'pomiarów';
-// Skąd masa: jeden pomiar (zwykle piątkowy) albo średnia z kilku z 7 dni
-const kgSrc = w => !w.n ? 'z ustawień — brak pomiarów' : w.n === 1 ? `pomiar z ${dm(w.last)}` : `średnia z ${w.n} pomiarów (7 dni do ${dm(w.last)})`;
+// Skąd masa: jeden pomiar albo średnia z kilku z 7 dni
+const kgSrc = w => !w.n ? 'z ustawień — brak pomiarów' : w.n === 1 ? `pomiar z ${dm(w.last)}` : `średnia z ${w.n} pomiarów (${dm(w.from)}–${dm(w.last)})`;
 const baseSet = () => ({ ...BASE_DEF, ...(S.settings.base || {}) });
-function weighIns() {
-  if (!KG) KG = Object.entries(S.days).filter(([, d]) => d.kg > 0).map(([date, d]) => [date, d.kg]).sort((a, b) => a[0] < b[0] ? -1 : 1);
-  return KG;
+// Pomiary z dni (kg — waga, bf — % tłuszczu), po dacie
+function series(f) {
+  if (!KG) KG = {};
+  if (!KG[f]) KG[f] = Object.entries(S.days).filter(([, d]) => d[f] > 0).map(([date, d]) => [date, d[f]]).sort((a, b) => a[0] < b[0] ? -1 : 1);
+  return KG[f];
 }
-// Masa dnia: średnia pomiarów z 7 dni kończących się ostatnim pomiarem do tego dnia (przyszłe dni — stan na dziś); bez pomiarów — z ustawień
-function weightAt(date) {
-  const today = todayISO(), ref = !date || date > today ? today : date, W = weighIns().filter(x => x[0] <= ref);
-  if (!W.length) return { kg: baseSet().kg, n: 0 };
-  const last = W[W.length - 1][0], win = W.filter(x => diffD(x[0], last) <= 6);
-  return { kg: win.reduce((a, x) => a + x[1], 0) / win.length, n: win.length, last };
+// Średnia krocząca: pomiary z 7 dni wstecz od danego dnia (przyszłe dni — stan na dziś); bez pomiaru w tych 7 dniach — 7 dni do ostatniego pomiaru
+function rollAt(f, date) {
+  const today = todayISO(), ref = !date || date > today ? today : date, W = series(f).filter(x => x[0] <= ref);
+  if (!W.length) return { n: 0 };
+  const lastM = W[W.length - 1][0], end = lastM >= addD(ref, -6) ? ref : lastM, win = W.filter(x => x[0] >= addD(end, -6));
+  return { v: Math.round(win.reduce((a, x) => a + x[1], 0) / win.length * 10) / 10, n: win.length, from: win[0][0], last: win[win.length - 1][0] };
 }
-// Bez aktywności przy masie z danego dnia
-const baseAt = date => { const b = baseSet(); return Math.round(b.k + KCAL_PER_KG * (weightAt(date).kg - b.kg)); };
+const weightAt = date => { const r = rollAt('kg', date); return r.n ? { kg: r.v, n: r.n, from: r.from, last: r.last } : { kg: baseSet().kg, n: 0 }; };
+const bfAt = date => { const r = rollAt('bf', date); return r.n ? { bf: r.v, n: r.n, from: r.from, last: r.last } : { bf: null, n: 0 }; };
+// Skład ciała dnia: masa i % tłuszczu (średnie 7 dni; bez pomiaru tłuszczu — % z ustawień), masa beztłuszczowa i tłuszcz w kg
+function bodyAt(date) {
+  const w = weightAt(date), f = bfAt(date), bf = f.n ? f.bf : baseSet().bf;
+  return { w, f, kg: w.kg, bf, lbm: w.kg * (1 - bf / 100), fm: w.kg * bf / 100 };
+}
+const refBody = () => { const b = baseSet(); return { kg: b.kg, lbm: b.kg * (1 - b.bf / 100), fm: b.kg * b.bf / 100 }; };
+// Bez aktywności przy składzie ciała z danego dnia
+const baseAt = date => {
+  const b = baseSet(), x = bodyAt(date), r = refBody();
+  return Math.round(b.k + (x.f.n ? KCAL_LEAN * (x.lbm - r.lbm) + KCAL_FAT * (x.fm - r.fm) : KCAL_PER_KG * (x.kg - b.kg)));
+};
 // Wydatek przewidywany = bez aktywności + aktywność rodzaju dnia
 const predBurn = (type, date) => baseAt(date) + T(type).act;
 // Wydatek dnia: z zegarka, jeśli wpisany, inaczej przewidywany
 const burnOf = (d, date) => d.burn != null ? d.burn : predBurn(d.type, date);
-// Cel dnia: jedzenie = wydatek + nadwyżka; białko i tłuszcz stałe, węglowodany = reszta kalorii
+// Strefa tłuszczu (średnia 7 dni): 1 = powyżej 15% (bez nadwyżki), −1 = poniżej 12% (większa nadwyżka); dzień postu bez zmian
+const bfZone = (type, f) => type === 'post' || !f.n ? 0 : f.bf > BF_HI ? 1 : f.bf < BF_LO ? -1 : 0;
+// Cel dnia: jedzenie = wydatek + nadwyżka (zależna od strefy tłuszczu); białko rośnie z masą beztłuszczową, tłuszcz z masą ciała
+// (w tabeli celów — przy masie i % tłuszczu z ustawień); węglowodany = reszta kalorii
 function goalOf(d, date) {
-  const ty = T(d.type), burn = burnOf(d, date), kcal = Math.max(0, burn + ty.plus);
-  return { kcal, b: ty.b, t: ty.t, w: Math.max(0, (kcal - ty.b * 4 - ty.t * 9) / 4), burn, plus: ty.plus };
+  const ty = T(d.type), burn = burnOf(d, date), x = bodyAt(date), r = refBody(), zone = bfZone(d.type, x.f);
+  const plus = zone > 0 ? Math.min(ty.plus, 0) : zone < 0 ? ty.plus + BF_UP : ty.plus, kcal = Math.max(0, burn + plus);
+  const b = Math.round(ty.b * x.lbm / r.lbm), t = Math.round(ty.t * x.kg / r.kg);
+  return { kcal, b, t, w: Math.max(0, (kcal - b * 4 - t * 9) / 4), burn, plus, plan: ty.plus, zone, bf: x.f.bf };
 }
+// Dopisek do nadwyżki, gdy zmienia ją % tłuszczu
+const zoneTxt = g => g.zone > 0 ? `utrzymanie — tłuszcz ${kgFmt(g.bf)}%, powyżej ${BF_HI}%` : g.zone < 0 ? `nadwyżka +${BF_UP} większa — tłuszcz ${kgFmt(g.bf)}%, poniżej ${BF_LO}%` : '';
 const plusTxt = p => p < 0 ? `deficyt ${k0(-p)}` : `nadwyżka +${k0(p)}`;
 // Zakończone dni z wpisami (bez dzisiejszego — dzień w trakcie zaniżałby średnie i bilans)
 function stats(dates) {
@@ -1291,9 +1316,17 @@ function statsHTML(st, what) {
     `<p>Bilans: <b>${sgn(bal)} kcal</b> · ${sgn(bal / n)} / dzień · ≈ <b>${kgTxt(bal / 7700)} kg</b> <small>(7700 kcal ≈ 1 kg)</small></p></section>`;
 }
 // Podsumowanie dnia: zjedzone vs cel, udział w energii, wydatek (przewidywany lub z zegarka) i bilans
-const kgInput = (d, date, l) => `<label class="gin">${l} <input data-kg="${date}" inputmode="decimal" autocomplete="off" placeholder="—" value="${d.kg ? kgFmt(d.kg) : ''}" aria-label="Waga rano w kg"> kg</label>`;
+const kgInput = (d, date) => `<label class="gin">Waga <input data-kg="${date}" inputmode="decimal" autocomplete="off" placeholder="—" value="${d.kg ? kgFmt(d.kg) : ''}" aria-label="Waga rano w kg"> kg</label>`;
+const bfInput = (d, date) => `<label class="gin">Tłuszcz <input data-bf="${date}" inputmode="decimal" autocomplete="off" placeholder="—" value="${d.bf ? kgFmt(d.bf) : ''}" aria-label="Tkanka tłuszczowa w %"> %</label>`;
+// Ważenie: na górze każdego dnia do dziś (opcjonalne), w piątek wyróżnione, dopóki nie ma pomiaru
+function weighRowHTML(d, date) {
+  if (date > todayISO()) return '';
+  const w = weightAt(date), f = bfAt(date), has = d.kg || d.bf;
+  const info = has ? `średnia 7 dni: ${kgFmt(w.kg)} kg${f.n ? ` · ${kgFmt(f.bf)}% tłuszczu` : ''}${w.n > 1 ? ` (${w.n} ${pomTxt(w.n)})` : ''}` : 'rano, po toalecie, przed jedzeniem · liczy się średnia z 7 dni';
+  return `<div class="kgrow${!has && parseD(date).getDay() === WEIGH_DAY ? ' todo' : ''}"><span><b>Ważenie</b><small>${info}</small></span><div class="kgin">${kgInput(d, date)}${bfInput(d, date)}</div></div>`;
+}
 function daySumHTML(d, date) {
-  const g = goalOf(d, date), e = eatenOf(d), bal = e.k - g.burn, act = T(d.type).act, w = weightAt(date);
+  const g = goalOf(d, date), e = eatenOf(d), bal = e.k - g.burn, act = T(d.type).act, x = bodyAt(date), w = x.w;
   const row = (name, v, unit, goal, kc) => `<tr><th>${name}</th><td>${k0(v)}${unit}</td><td>${k0(goal)}${unit}</td><td>${kc ? pctE(v * kc, e.k) + '%' : ''}</td></tr>`;
   return `<section class="wsum" aria-label="Podsumowanie dnia"><h3>Podsumowanie dnia</h3>` +
     `<table class="mt"><thead><tr><th></th><th>Zjedzone</th><th>Cel</th><th>Energii</th></tr></thead><tbody>` +
@@ -1302,9 +1335,8 @@ function daySumHTML(d, date) {
     `<h3>Wydatek i bilans</h3>` +
     `<div class="burn"><span>Przewidywany: <b>${k0(predBurn(d.type, date))} kcal</b><small>bez aktywności ${k0(baseAt(date))} ${act < 0 ? '−' : '+'} aktywność ${k0(Math.abs(act))} (${esc(TYPES[d.type].n.toLowerCase())})</small></span>` +
     `<label class="gin">Z zegarka <input data-burn="${date}" inputmode="numeric" autocomplete="off" placeholder="—" value="${d.burn != null ? d.burn : ''}" aria-label="Wydatek z zegarka w kcal"> kcal</label></div>` +
-    `<div class="burn"><span>Masa: <b>${kgFmt(w.kg)} kg</b><small>${kgSrc(w)}</small></span>` +
-    (parseD(date).getDay() === WEIGH_DAY ? '' : kgInput(d, date, 'Waga rano')) + `</div>` +
-    `<p>Cel jedzenia: <b>${k0(g.kcal)} kcal</b> <small>= wydatek ${k0(g.burn)}${d.burn != null ? ' z zegarka' : ''} ${g.plus < 0 ? '−' : '+'} ${k0(Math.abs(g.plus))} (${plusTxt(g.plus).split(' ')[0]})</small></p>` +
+    `<div class="burn"><span>Masa: <b>${kgFmt(w.kg)} kg</b>${x.f.n ? ` · tłuszcz <b>${kgFmt(x.f.bf)}%</b>` : ''}<small>${kgSrc(w)}${x.f.n ? ` · beztłuszczowa ${kgFmt(x.lbm)} kg` : ''}</small></span></div>` +
+    `<p>Cel jedzenia: <b>${k0(g.kcal)} kcal</b> <small>= wydatek ${k0(g.burn)}${d.burn != null ? ' z zegarka' : ''} ${g.plus < 0 ? '−' : '+'} ${k0(Math.abs(g.plus))} (${g.zone ? zoneTxt(g) : plusTxt(g.plus).split(' ')[0]})</small></p>` +
     `<p>Bilans: <b>${sgn(bal)} kcal</b> <small>(zjedzone ${k0(e.k)} − wydatek ${k0(g.burn)}${d.burn != null ? ' z zegarka' : ' przewidywany'}${date === todayISO() ? ' · dzień trwa' : ''})</small></p></section>`;
 }
 
@@ -1317,7 +1349,7 @@ function dayHTML() {
     `<button type="button" class="navb" data-day="1" aria-label="Następny dzień">›</button></div>`;
   h += `<div class="dtype"><label for="dtype">Rodzaj dnia</label><select id="dtype">` +
     Object.keys(TYPES).map(k => `<option value="${k}" ${k === d.type ? 'selected' : ''}>${esc(TYPES[k].n)} · ${k0(goalOf({ type: k, burn: d.burn }, date).kcal)}</option>`).join('') + `</select></div>`;
-  if (parseD(date).getDay() === WEIGH_DAY) h += `<div class="kgrow${d.kg ? '' : ' todo'}"><span><b>Ważenie</b><small>${d.kg ? 'liczy się do wydatku i celu do następnego piątku' : 'rano, po toalecie, przed jedzeniem'}</small></span>${kgInput(d, date, 'Waga')}</div>`;
+  h += weighRowHTML(d, date);
   const left = ty.kcal - eaten.k;
   const pending = d.items.some(e => !e.ok);
   h += `<section class="sum" aria-label="Podsumowanie dnia">` +
@@ -1396,7 +1428,7 @@ function weekHTML() {
       `<span class="bar"><i class="${e.k > g.kcal * 1.05 ? 'over' : ''}" style="width:${pct(e.k, g.kcal)}%"></i></span>` +
       `<span class="pb">${has ? `Białko ${g0(e.b)} / ${g0(g.b)} g · T ${g0(e.t)} · W ${g0(e.w)}<br>` : date < today ? 'brak wpisów<br>' : ''}` +
       `Wydatek ${d.burn != null ? k0(d.burn) + ' z zegarka' : '~' + k0(g.burn)}` +
-      `${has ? ` · bilans ${sgn(e.k - g.burn)}${date === today ? ' (dzień trwa)' : ''}` : ` · ${plusTxt(g.plus)}`}${d.kg ? ` · waga ${kgFmt(d.kg)}` : ''}</span></button>`;
+      `${has ? ` · bilans ${sgn(e.k - g.burn)}${date === today ? ' (dzień trwa)' : ''}` : ` · ${plusTxt(g.plus)}`}${d.kg ? ` · waga ${kgFmt(d.kg)}` : ''}${d.bf ? ` · ${kgFmt(d.bf)}%` : ''}</span></button>`;
   }
   h += statsHTML(stats(dates), 'Tydzień');
   return h;
@@ -1416,10 +1448,15 @@ function weekPlanHTML(dates) {
     `<p>Cel: <b>${k0(goal)} kcal</b> <small>= wydatek ${k0(burn)} ${plus < 0 ? '−' : '+'} ${k0(Math.abs(plus))}</small></p>` +
     `<p>Wydatek: ${nw === n ? 'cały z zegarka' : nw ? `z zegarka ${nw} z ${n} dni, reszta przewidywana` : 'przewidywany'} · ${plus < 0 ? 'deficyt' : 'nadwyżka'} ${sgn(plus / n)} / dzień ≈ ${kgTxt(plus / 7700)} kg</p>`;
   const avg = a => a.reduce((x, y) => x + y, 0) / a.length;
-  const wk = dates.map(x => S.days[x] && S.days[x].kg).filter(Boolean), pw = dates.map(x => S.days[addD(x, -7)] && S.days[addD(x, -7)].kg).filter(Boolean);
+  const ms = (ds, f) => ds.map(x => S.days[x] && S.days[x][f]).filter(Boolean);
+  const wk = ms(dates, 'kg'), pw = ms(dates.map(x => addD(x, -7)), 'kg'), wf = ms(dates, 'bf'), pf = ms(dates.map(x => addD(x, -7)), 'bf');
   const wkd = dates.filter(x => S.days[x] && S.days[x].kg);
-  if (wk.length) h += `<p>Masa: <b>${kgFmt(avg(wk))} kg</b> (${wk.length === 1 ? `pomiar ${dm(wkd[0])}` : `śr. z ${wk.length} pomiarów`})${pw.length ? ` · tydzień wcześniej ${kgFmt(avg(pw))} (${kgTxt(avg(wk) - avg(pw))} kg)` : ''}</p>`;
-  else { const w = weightAt(dates[n - 1]); h += `<p>Masa: ${w.n ? `${kgFmt(w.kg)} kg (ostatni pomiar ${dm(w.last)})` : 'brak pomiarów'} · ważenie w piątek</p>`; }
+  const lean = (k, f) => avg(k) * (1 - avg(f) / 100);
+  if (wk.length) h += `<p>Masa: <b>${kgFmt(avg(wk))} kg</b> (${wk.length === 1 ? `pomiar ${dm(wkd[0])}` : `śr. z ${wk.length} pomiarów`})${pw.length ? ` · tydzień wcześniej ${kgFmt(avg(pw))} (${kgTxt(avg(wk) - avg(pw))} kg)` : ''}</p>` +
+    (wf.length ? `<p>Tłuszcz: <b>${kgFmt(avg(wf))}%</b>${pf.length ? ` (tydzień wcześniej ${kgFmt(avg(pf))}%)` : ''} · beztłuszczowa ${kgFmt(lean(wk, wf))} kg${pf.length && pw.length ? ` (${kgTxt(lean(wk, wf) - lean(pw, pf))} kg)` : ''}</p>` : '');
+  else { const w = weightAt(dates[n - 1]); h += `<p>Masa: ${w.n ? `${kgFmt(w.kg)} kg (ostatni pomiar ${dm(w.last)})` : 'brak pomiarów'} · ważenie: pole na górze dnia</p>`; }
+  const zg = goalOf({ type: 'sil' }, dates[n - 1] > today ? today : dates[n - 1]);
+  if (zg.zone) h += `<p><small>${zg.zone > 0 ? `Tłuszcz ${kgFmt(zg.bf)}% (średnia 7 dni) — powyżej ${BF_HI}%: cele bez nadwyżki, aż średnia wróci do ${BF_HI}%.` : `Tłuszcz ${kgFmt(zg.bf)}% (średnia 7 dni) — poniżej ${BF_LO}%: nadwyżka większa o ${BF_UP} kcal / dzień.`}</small></p>`;
   if (nd) h += `<p>${nr ? 'Dotąd' : 'Zjedzone'} (${nd} ${dniTxt(nd)} z wpisami): <b>${k0(de)}</b> z planu ${k0(dg)} kcal <small>(${sgn(de - dg)})</small></p>`;
   if (nr && nd) {
     // różnica z minionych dni rozłożona po równo na dziś i resztę tygodnia — dopisek do celu każdego dnia
@@ -1447,13 +1484,13 @@ function monthHTML() {
     all.push(...dates);
     const st = stats(dates);
     const goal = st.n ? st.gk / st.n : dates.reduce((a, x) => a + goalOf(dayOf(x), x).kcal, 0) / dates.length;
-    const avg = st.n ? st.k / st.n : 0, wk = dates.map(x => S.days[x] && S.days[x].kg).filter(Boolean);
+    const avg = st.n ? st.k / st.n : 0, wk = dates.map(x => S.days[x] && S.days[x].kg).filter(Boolean), wf = dates.map(x => S.days[x] && S.days[x].bf).filter(Boolean);
     const cur = today >= dates[0] && today <= dates[dates.length - 1];
     h += `<button type="button" class="wd${cur ? ' today' : ''}" data-gowk="${ws}">` +
       `<span class="n">${dm(dates[0])} – ${dm(dates[dates.length - 1])}<small>${st.n ? `${st.n} ${dniTxt(st.n)} z wpisami` : 'brak zakończonych dni'}</small></span>` +
       `<span class="v">${st.n ? k0(avg) : '—'} <small>/ ${k0(goal)} śr.</small></span>` +
       `<span class="bar"><i class="${avg > goal * 1.05 ? 'over' : ''}" style="width:${pct(avg, goal)}%"></i></span>` +
-      `<span class="pb">${st.n ? `Białko śr. ${g0(st.b / st.n)} g · T ${g0(st.t / st.n)} · W ${g0(st.w / st.n)}<br>Bilans ${sgn(st.k - st.burn)} kcal · ${sgn((st.k - st.burn) / st.n)} / dzień` : 'średnie po zakończonych dniach'}${wk.length ? `<br>Masa ${wk.length > 1 ? 'śr. ' : ''}${kgFmt(wk.reduce((a, x) => a + x, 0) / wk.length)} kg` : ''}</span></button>`;
+      `<span class="pb">${st.n ? `Białko śr. ${g0(st.b / st.n)} g · T ${g0(st.t / st.n)} · W ${g0(st.w / st.n)}<br>Bilans ${sgn(st.k - st.burn)} kcal · ${sgn((st.k - st.burn) / st.n)} / dzień` : 'średnie po zakończonych dniach'}${wk.length ? `<br>Masa ${wk.length > 1 ? 'śr. ' : ''}${kgFmt(wk.reduce((a, x) => a + x, 0) / wk.length)} kg` : ''}${wf.length ? ` · tłuszcz ${kgFmt(wf.reduce((a, x) => a + x, 0) / wf.length)}%` : ''}</span></button>`;
   }
   return h + statsHTML(stats(all), 'Miesiąc');
 }
@@ -1494,9 +1531,12 @@ const learnTxt = () => {
   return t.length ? `Dla porównania — średnio z zegarka (4 tyg.): ${t.join(' · ')}. Tabela się od tego nie zmienia.` : '';
 };
 const weightTxt = () => {
-  const w = weightAt();
-  return (w.n ? `Masa teraz: ${kgFmt(w.kg)} kg — ${kgSrc(w)}.` : 'Brak pomiarów wagi — liczę z masy powyżej.') +
-    ` Wagę wpisuj w piątek rano (pole na górze dnia); bez aktywności zmienia się o ~${KCAL_PER_KG} kcal na każdy kg, a z nim wydatek i cel do następnego pomiaru.`;
+  const w = weightAt(), x = bodyAt(), g = goalOf({ type: 'sil' }, todayISO());
+  return (w.n ? `Masa teraz: ${kgFmt(w.kg)} kg${x.f.n ? `, tłuszcz ${kgFmt(x.f.bf)}% (beztłuszczowa ${kgFmt(x.lbm)} kg)` : ''} — ${kgSrc(w)}.` : 'Brak pomiarów wagi — liczę z masy powyżej.') +
+    ` Waż się rano, kiedy chcesz — liczy się średnia z 7 dni wstecz, więc skoki po weekendzie się wyrównują.` +
+    ` Bez aktywności: ~${KCAL_PER_KG} kcal na kg masy, z % tłuszczu ~${KCAL_LEAN} na kg masy beztłuszczowej i ~${KCAL_FAT} na kg tłuszczu. Białko rośnie z masą beztłuszczową, tłuszcz z masą (tabela niżej — dla obecnej masy).` +
+    ` Cel: mięśnie przy ${BF_LO}–${BF_HI}% tłuszczu — powyżej ${BF_HI}% bez nadwyżki, poniżej ${BF_LO}% nadwyżka +${BF_UP}.` +
+    (g.zone ? ` <b>Teraz: ${zoneTxt(g)}.</b>` : '');
 };
 const wkPlanTxt = () => {
   let k = 0, b = 0;
@@ -1516,14 +1556,15 @@ function settingsHTML() {
       Object.keys(TYPES).map(k => `<option value="${k}" ${k === wkType(i) ? 'selected' : ''}>${esc(TYPES[k].n)}</option>`).join('') + `</select></label>`).join('')}</div>` +
     `<p><b>Cele dnia</b></p>` +
     `<p>Cel jedzenia = wydatek + nadwyżka. Wydatek przewidywany = bez aktywności (zależy od masy) + aktywność rodzaju dnia; wpis z zegarka zastępuje go w danym dniu. Węglowodany = reszta kalorii po białku i tłuszczu.</p>` +
-    `<div class="tg"><span></span><span class="h">kcal</span><span class="h">przy masie</span><span></span>` +
+    `<div class="tg"><span></span><span class="h">kcal</span><span class="h">przy masie, kg</span><span class="h">i tłuszczu, %</span>` +
       `<span>Bez aktywności<small>teraz ${k0(baseAt())} przy ${kgFmt(weightAt().kg)} kg</small></span>` +
       `<input inputmode="numeric" autocomplete="off" data-base="k" value="${baseSet().k}" aria-label="Bez aktywności: kcal z zegarka">` +
-      `<input inputmode="decimal" autocomplete="off" data-base="kg" value="${kgFmt(baseSet().kg)}" aria-label="Masa przy tej wartości, kg"><span>kg</span></div>` +
+      `<input inputmode="decimal" autocomplete="off" data-base="kg" value="${kgFmt(baseSet().kg)}" aria-label="Masa przy tej wartości, kg">` +
+      `<input inputmode="decimal" autocomplete="off" data-base="bf" value="${kgFmt(baseSet().bf)}" aria-label="Tkanka tłuszczowa przy tej wartości, %"></div>` +
     `<p>${weightTxt()}</p>` +
     `<div class="tg"><span></span>${TG_FIELDS.map(([, l]) => `<span class="h">${l}</span>`).join('')}` +
-    Object.keys(TYPES).map(k => `<span>${esc(TYPES[k].n)}<small>cel ${k0(Math.max(0, predBurn(k) + T(k).plus))}</small></span>` + TG_FIELDS.map(([f, l]) =>
-      `<input ${f === 'plus' ? 'inputmode="text"' : 'inputmode="numeric"'} autocomplete="off" data-tg="${k}" data-f="${f}" value="${f === 'act' ? predBurn(k) : (f === 'plus' && T(k)[f] > 0 ? '+' : '') + T(k)[f]}" aria-label="${esc(TYPES[k].n)}: ${l}">`).join('')).join('') + `</div>` +
+    Object.keys(TYPES).map(k => `<span>${esc(TYPES[k].n)}<small>cel ${k0(goalOf({ type: k }, todayISO()).kcal)}</small></span>` + TG_FIELDS.map(([f, l]) =>
+      `<input ${f === 'plus' ? 'inputmode="text"' : 'inputmode="numeric"'} autocomplete="off" data-tg="${k}" data-f="${f}" value="${f === 'act' ? predBurn(k) : f === 'b' ? goalOf({ type: k }, todayISO()).b : (f === 'plus' && T(k)[f] > 0 ? '+' : '') + T(k)[f]}" aria-label="${esc(TYPES[k].n)}: ${l}">`).join('')).join('') + `</div>` +
     (learnTxt() ? `<p>${learnTxt()}</p>` : '') +
     `<p>${wkPlanTxt()}</p>` +
     `<div class="btnrow"><button type="button" class="btn2" data-act="tgreset">Przywróć domyślne</button></div>` +
@@ -1910,6 +1951,14 @@ document.addEventListener('change', ev => {
     else { render(true); return; }
     persist(); render(true); return;
   }
+  // % tkanki tłuszczowej (puste = usuń pomiar)
+  if (t.dataset && t.dataset.bf) {
+    const raw = t.value.trim().replace(',', '.').replace('%', ''), v = parseFloat(raw), date = t.dataset.bf;
+    if (raw === '') { if (S.days[date]) delete S.days[date].bf; }
+    else if (v >= 3 && v <= 60) mat(date).bf = Math.round(v * 10) / 10;
+    else { render(true); return; }
+    persist(); render(true); return;
+  }
   if (t.dataset && 'wk' in t.dataset && TYPES[t.value]) { S.settings.wk = DEF_TYPE.map((x, i) => i === +t.dataset.wk ? t.value : wkType(i)); persist(); render(true); return; }
   if (t.name === 'hasL') { lboxSync(); return; }
   // gramy: przelicz na liczbę jednostek
@@ -1935,12 +1984,13 @@ document.addEventListener('input', ev => {
     if (!(f === 'plus' ? v >= -2000 && v <= 1500 : f === 'act' ? v >= 800 && v <= 9000 : v > 0 && v < 1000)) return;
     const k = t.dataset.tg;
     // wydatek wpisany przy obecnej masie → zapamiętana sama aktywność
-    S.settings.targets[k] = { ...(S.settings.targets[k] || {}), [f]: f === 'act' ? v - baseAt() : v };
+    // białko wpisane przy obecnej masie beztłuszczowej → zapamiętane przy masie z ustawień
+    S.settings.targets[k] = { ...(S.settings.targets[k] || {}), [f]: f === 'act' ? v - baseAt() : f === 'b' ? Math.round(v * refBody().lbm / bodyAt().lbm * 10) / 10 : v };
     persist();
   }
   if (t.dataset && t.dataset.base) {
     const f = t.dataset.base, v = parseFloat(t.value.replace(',', '.'));
-    if (!(f === 'k' ? v >= 1000 && v <= 4000 : v >= 30 && v <= 250)) return;
+    if (!(f === 'k' ? v >= 1000 && v <= 4000 : f === 'bf' ? v >= 3 && v <= 60 : v >= 30 && v <= 250)) return;
     S.settings.base = { ...baseSet(), [f]: f === 'k' ? Math.round(v) : Math.round(v * 10) / 10 };
     persist();
   }
@@ -1951,7 +2001,7 @@ document.addEventListener('toggle', ev => {
 }, true);
 $('#own-form').addEventListener('submit', ev => { ev.preventDefault(); addOwn(); });
 // Enter w polu gramów: zatwierdź bez wysyłania formularza
-document.addEventListener('keydown', ev => { if (ev.key === 'Enter' && (ev.target.id === 'pk-grams' || ev.target.id === 'pk-pcs' || (ev.target.dataset && (ev.target.dataset.grams || ev.target.dataset.pcs || ev.target.dataset.burn || ev.target.dataset.kg || ev.target.dataset.base || ev.target.dataset.tg)))) { ev.preventDefault(); ev.target.blur(); } });
+document.addEventListener('keydown', ev => { if (ev.key === 'Enter' && (ev.target.id === 'pk-grams' || ev.target.id === 'pk-pcs' || (ev.target.dataset && (ev.target.dataset.grams || ev.target.dataset.pcs || ev.target.dataset.burn || ev.target.dataset.kg || ev.target.dataset.bf || ev.target.dataset.base || ev.target.dataset.tg)))) { ev.preventDefault(); ev.target.blur(); } });
 fform.addEventListener('submit', ev => { ev.preventDefault(); saveFood(); });
 $('#import-file').addEventListener('change', ev => { const f = ev.target.files && ev.target.files[0]; if (f) importData(f); ev.target.value = ''; });
 window.addEventListener('hashchange', () => render());
