@@ -233,6 +233,8 @@ main { padding-block: 10px 120px; display: grid; gap: 8px; }
 .wk label:last-child { grid-column: 1 / -1; }
 .wk label:last-child select { flex: 0 1 auto; }
 .tg .h { color: var(--muted); font-weight: 600; text-align: center; font-size: 0.78rem; }
+.tg .chk { display: flex; justify-content: center; align-items: center; min-height: 40px; }
+.tg .chk input { width: 24px; height: 24px; min-height: 0; accent-color: var(--accent); }
 .tg input { width: 100%; min-height: 40px; border: 1px solid var(--line); border-radius: 8px; background: var(--bg); text-align: center; font-size: 16px; font-variant-numeric: tabular-nums; padding: 0 4px; }
 .btnrow { display: flex; flex-wrap: wrap; gap: 8px; }
 .btn2 { border: 1px solid var(--line); background: var(--bg); border-radius: 10px; padding: 0 14px; height: 44px; font-weight: 600; }
@@ -1022,6 +1024,10 @@ const WEIGH_DAY = 5; // pole ważenia jest na górze każdego dnia, w piątek wy
 // Cel: przyrost mięśni przy 11–16% tłuszczu, najlepiej 13% (średnia 7 dni). Nadwyżka z planu przy 13%; powyżej maleje do 0 przy 16%
 // (wyżej — utrzymanie), poniżej rośnie do +100 przy 11% (niżej — +100). Zakres i cel można zmienić w ustawieniach (settings.bfz).
 const BFZ_DEF = { lo: 11, mid: 13, hi: 16 }, BF_UP = 100;
+// Korekta z wagi: co 14 dni tempo zmiany masy z 28 dni (prosta przez pomiary) porównane z tempem docelowym; różnica ponad 0,25 kg/mies.
+// → ±100 kcal na dzień (poza dniem postu), łącznie najwyżej ±400. Po zmianie następne sprawdzenie po 28 dniach (pełne 4 tygodnie na nowych
+// kaloriach). Tempo docelowe (settings.rate, kg/mies.) przy celu tłuszczu; powyżej maleje do 0 przy górnej granicy, poniżej rośnie do ×1,5.
+const ADJ = { every: 14, after: 28, win: 28, tol: 0.25, step: 100, max: 400, minN: 4, minSpan: 20 }, RATE_DEF = 0.5, RATE_UP = 1.5;
 
 /* ---------- Pomocnicze ---------- */
 const $ = (s, el = document) => el.querySelector(s);
@@ -1289,9 +1295,74 @@ function plusAt(type, plan, f) {
 // (w tabeli celów — przy masie i % tłuszczu z ustawień); węglowodany = reszta kalorii
 function goalOf(d, date) {
   const ty = T(d.type), burn = burnOf(d, date), x = bodyAt(date), r = refBody();
-  const plus = plusAt(d.type, ty.plus, x.f), zone = plus === ty.plus ? 0 : x.f.bf > bfSet().mid ? 1 : -1, kcal = Math.max(0, burn + plus);
+  const plus = plusAt(d.type, ty.plus, x.f), zone = plus === ty.plus ? 0 : x.f.bf > bfSet().mid ? 1 : -1;
+  const adj = d.type === 'post' ? 0 : adjK(date), kcal = Math.max(0, burn + plus + adj);
   const b = Math.round(ty.b * x.lbm / r.lbm), t = Math.round(ty.t * x.kg / r.kg);
-  return { kcal, b, t, w: Math.max(0, (kcal - b * 4 - t * 9) / 4), burn, plus, plan: ty.plus, zone, bf: x.f.bf };
+  return { kcal, b, t, w: Math.max(0, (kcal - b * 4 - t * 9) / 4), burn, plus, adj, plan: ty.plus, zone, bf: x.f.bf };
+}
+// Tempo zmiany na miesiąc: prosta przez pomiary z 28 dni do danego dnia (min. 4 pomiary rozłożone na ≥ 20 dni);
+// f = 'kg' (masa), 'bf' (% tłuszczu, w punktach) albo 'lbm' (masa beztłuszczowa z dni z oboma pomiarami)
+function trendAt(f, date) {
+  const end = date || todayISO(), from = addD(end, -(ADJ.win - 1));
+  const src = f === 'lbm' ? series('kg').filter(x => S.days[x[0]].bf > 0).map(x => [x[0], x[1] * (1 - S.days[x[0]].bf / 100)]) : series(f);
+  const W = src.filter(x => x[0] >= from && x[0] <= end);
+  if (W.length < ADJ.minN || diffD(W[0][0], W[W.length - 1][0]) < ADJ.minSpan) return null;
+  const X = W.map(x => diffD(from, x[0])), mx = X.reduce((a, b) => a + b, 0) / X.length, my = W.reduce((a, x) => a + x[1], 0) / W.length;
+  let sxy = 0, sxx = 0;
+  X.forEach((x, i) => { sxy += (x - mx) * (W[i][1] - my); sxx += (x - mx) * (x - mx); });
+  return { v: sxy / sxx * 30.4, n: W.length, from: W[0][0], last: W[W.length - 1][0] };
+}
+const rateSet = () => S.settings.rate != null ? S.settings.rate : RATE_DEF;
+// Tempo docelowe (kg/mies.) przy średnim % tłuszczu — jak nadwyżka: przy celu z ustawień, 0 od górnej granicy, ×1,5 od dolnej
+function rateAt(f) {
+  const R = rateSet(), z = bfSet(), x = f.bf, r = v => Math.round(v * 20) / 20;
+  if (!f.n) return R;
+  if (x >= z.hi) return 0;
+  if (x > z.mid) return r(R * (z.hi - x) / (z.hi - z.mid));
+  if (x > z.lo) return r(R * (1 + (RATE_UP - 1) * (z.mid - x) / (z.mid - z.lo)));
+  return r(R * RATE_UP);
+}
+// Korekta z wagi w danym dniu = suma zmian z dziennika (settings.adj: {d, dk, r = tempo, g = cel, n} albo {d, dk, m: 1} — ręczna)
+const adjK = date => (S.settings.adj || []).reduce((a, e) => e.d <= (date || todayISO()) ? a + e.dk : a, 0);
+// Następne sprawdzenie: 14 dni po poprzednim, 28 dni po zmianie; bez sprawdzeń — gdy tylko będzie dość pomiarów (null)
+const adjNext = () => { const L = S.settings.adj || [], e = L[L.length - 1]; return e ? addD(e.d, e.dk ? ADJ.after : ADJ.every) : null; };
+function runAdj() {
+  if (S.settings.adjOff) return;
+  const today = todayISO(), nx = adjNext();
+  if (nx && today < nx) return;
+  const tr = trendAt('kg', today);
+  if (!tr) return;
+  const g = rateAt(bfAt(today)), k = adjK(today), diff = tr.v - g;
+  const dk = Math.max(-ADJ.max, Math.min(ADJ.max, k + (diff < -ADJ.tol ? ADJ.step : diff > ADJ.tol ? -ADJ.step : 0))) - k;
+  (S.settings.adj = S.settings.adj || []).push({ d: today, dk, r: Math.round(tr.v * 100) / 100, g, n: tr.n });
+  persist();
+}
+// Ręczna korekta (pole w ustawieniach) — kilka zmian tego samego dnia to jedna zmiana
+function setAdj(v) {
+  const today = todayISO(), L = (S.settings.adj = S.settings.adj || []), e = L[L.length - 1];
+  if (e && e.d === today && e.m) L.pop();
+  const k = adjK(today);
+  if (v !== k) L.push({ d: today, dk: v - k, m: 1 });
+}
+const p1 = x => (x >= 0.05 ? '+' : x <= -0.05 ? '−' : '') + kgFmt(Math.abs(x));
+const rateFmt = x => String(Math.round(x * 100) / 100).replace('.', ',');
+// Ostatnia automatyczna zmiana z ostatnich 7 dni — informacja w podsumowaniu dnia
+function adjNote(date) {
+  const L = S.settings.adj || [], e = L[L.length - 1];
+  if (!e || !e.dk || e.m || date !== todayISO() || diffD(e.d, date) > 6) return '';
+  return `<p><small>Od ${dm(e.d)} korekta z wagi <b>${sgn(e.dk)} kcal / dzień</b>: tempo ${kgTxt(e.r)} kg/mies. przy celu ${kgTxt(e.g)} (4 tyg., ${e.n} ${pomTxt(e.n)}).</small></p>`;
+}
+// Tempo wagi, trend tłuszczu i korekta — w planie tygodnia (cur = tydzień z dzisiejszym dniem)
+function paceHTML(date, cur) {
+  const tr = trendAt('kg', date), f = bfAt(date), g = rateAt(f), bt = trendAt('bf', date), lt = trendAt('lbm', date), k = adjK(date);
+  let s = tr ? `<p>Tempo wagi (4 tyg.): <b>${kgTxt(tr.v)} kg/mies.</b> · cel ${kgTxt(g)}${f.n ? ` przy ${kgFmt(f.bf)}% tłuszczu` : ''}</p>`
+    : `<p>Tempo wagi: za mało pomiarów — potrzeba ${ADJ.minN} w 4 tygodniach, rozłożonych na co najmniej 3 tygodnie</p>`;
+  if (bt) s += `<p>Trend (4 tyg.): tłuszcz ${p1(bt.v)} pkt / mies.${lt ? ` · beztłuszczowa ${kgTxt(lt.v)} kg/mies.` : ''}</p>`;
+  if (cur) {
+    const nx = adjNext(), today = todayISO();
+    s += `<p><small>Korekta z wagi: ${k ? `<b>${sgn(k)} kcal / dzień</b>` : '0'}${S.settings.adjOff ? ' (automatyczna wyłączona)' : ` · następne sprawdzenie ${nx ? dm(nx > today ? nx : today) : 'po 4 pomiarach w ciągu 3 tygodni'}`}</small></p>`;
+  }
+  return s;
 }
 // Dopisek do nadwyżki, gdy zmienia ją % tłuszczu
 const zoneTxt = g => { const z = bfSet(); return !g.zone ? '' : g.bf >= z.hi ? `utrzymanie — tłuszcz ${kgFmt(g.bf)}%, od ${kgFmt(z.hi)}% w górę` : `${g.zone > 0 ? 'mniejsza' : 'większa'} nadwyżka — tłuszcz ${kgFmt(g.bf)}%, cel ${kgFmt(z.mid)}%`; };
@@ -1345,7 +1416,8 @@ function daySumHTML(d, date) {
     `<div class="burn"><span>Przewidywany: <b>${k0(predBurn(d.type, date))} kcal</b><small>bez aktywności ${k0(baseAt(date))} ${act < 0 ? '−' : '+'} aktywność ${k0(Math.abs(act))} (${esc(TYPES[d.type].n.toLowerCase())})</small></span>` +
     `<label class="gin">Z zegarka <input data-burn="${date}" inputmode="numeric" autocomplete="off" placeholder="—" value="${d.burn != null ? d.burn : ''}" aria-label="Wydatek z zegarka w kcal"> kcal</label></div>` +
     `<div class="burn"><span>Masa: <b>${kgFmt(w.kg)} kg</b>${x.f.n ? ` · tłuszcz <b>${kgFmt(x.f.bf)}%</b>` : ''}<small>${kgSrc(w)}${x.f.n ? ` · beztłuszczowa ${kgFmt(x.lbm)} kg` : ''}</small></span></div>` +
-    `<p>Cel jedzenia: <b>${k0(g.kcal)} kcal</b> <small>= wydatek ${k0(g.burn)}${d.burn != null ? ' z zegarka' : ''} ${g.plus < 0 ? '−' : '+'} ${k0(Math.abs(g.plus))} (${g.zone ? zoneTxt(g) : plusTxt(g.plus).split(' ')[0]})</small></p>` +
+    `<p>Cel jedzenia: <b>${k0(g.kcal)} kcal</b> <small>= wydatek ${k0(g.burn)}${d.burn != null ? ' z zegarka' : ''} ${g.plus < 0 ? '−' : '+'} ${k0(Math.abs(g.plus))} (${g.zone ? zoneTxt(g) : plusTxt(g.plus).split(' ')[0]})${g.adj ? ` ${g.adj < 0 ? '−' : '+'} ${k0(Math.abs(g.adj))} (korekta z wagi)` : ''}</small></p>` +
+    adjNote(date) +
     `<p>Bilans: <b>${sgn(bal)} kcal</b> <small>(zjedzone ${k0(e.k)} − wydatek ${k0(g.burn)}${d.burn != null ? ' z zegarka' : ' przewidywany'}${date === todayISO() ? ' · dzień trwa' : ''})</small></p></section>`;
 }
 
@@ -1464,7 +1536,8 @@ function weekPlanHTML(dates) {
   if (wk.length) h += `<p>Masa: <b>${kgFmt(avg(wk))} kg</b> (${wk.length === 1 ? `pomiar ${dm(wkd[0])}` : `śr. z ${wk.length} pomiarów`})${pw.length ? ` · tydzień wcześniej ${kgFmt(avg(pw))} (${kgTxt(avg(wk) - avg(pw))} kg)` : ''}</p>` +
     (wf.length ? `<p>Tłuszcz: <b>${kgFmt(avg(wf))}%</b>${pf.length ? ` (tydzień wcześniej ${kgFmt(avg(pf))}%)` : ''} · beztłuszczowa ${kgFmt(lean(wk, wf))} kg${pf.length && pw.length ? ` (${kgTxt(lean(wk, wf) - lean(pw, pf))} kg)` : ''}</p>` : '');
   else { const w = weightAt(dates[n - 1]); h += `<p>Masa: ${w.n ? `${kgFmt(w.kg)} kg (ostatni pomiar ${dm(w.last)})` : 'brak pomiarów'} · ważenie: pole na górze dnia</p>`; }
-  const zg = goalOf({ type: 'sil' }, dates[n - 1] > today ? today : dates[n - 1]);
+  const zd = dates[n - 1] > today ? today : dates[n - 1], zg = goalOf({ type: 'sil' }, zd);
+  if (zd >= dates[0]) h += paceHTML(zd, dates.includes(today));
   if (zg.zone) { const z = bfSet(); h += `<p><small>Tłuszcz ${kgFmt(zg.bf)}% (średnia 7 dni; cel ${kgFmt(z.mid)}%, zakres ${kgFmt(z.lo)}–${kgFmt(z.hi)}%): nadwyżka w dzień siłowy ${sgn(zg.plus)} zamiast ${sgn(zg.plan)} kcal${zg.bf >= z.hi ? ' — utrzymanie, aż średnia spadnie poniżej ' + kgFmt(z.hi) + '%' : ''}.</small></p>`; }
   if (nd) h += `<p>${nr ? 'Dotąd' : 'Zjedzone'} (${nd} ${dniTxt(nd)} z wpisami): <b>${k0(de)}</b> z planu ${k0(dg)} kcal <small>(${sgn(de - dg)})</small></p>`;
   if (nr && nd) {
@@ -1547,6 +1620,13 @@ const weightTxt = () => {
     ` Cel: mięśnie przy ${kgFmt(bfSet().lo)}–${kgFmt(bfSet().hi)}% tłuszczu, najlepiej ${kgFmt(bfSet().mid)}% — przy celu nadwyżka z tabeli, powyżej maleje (0 przy ${kgFmt(bfSet().hi)}%), poniżej rośnie (+${BF_UP} przy ${kgFmt(bfSet().lo)}%).` +
     (g.zone ? ` <b>Teraz: ${zoneTxt(g)}.</b>` : '');
 };
+const adjTxt = () => {
+  const z = bfSet(), R = rateSet(), g = rateAt(bfAt()), nx = adjNext(), today = todayISO(), bt = trendAt('bf');
+  return `Korekta z wagi: co ${ADJ.every} dni tempo wagi z 4 tygodni porównane z celem (${rateFmt(R)} kg/mies. przy ${kgFmt(z.mid)}% tłuszczu, 0 od ${kgFmt(z.hi)}%, ${rateFmt(Math.round(R * RATE_UP * 20) / 20)} przy ${kgFmt(z.lo)}%).` +
+    ` Różnica ponad ${rateFmt(ADJ.tol)} kg/mies. → ±${ADJ.step} kcal / dzień (poza postem, do ±${ADJ.max}); po zmianie następna po 4 tygodniach.` +
+    ` <b>Teraz cel ${kgTxt(g)} kg/mies.${S.settings.adjOff ? ', automatyczna korekta wyłączona' : `, następne sprawdzenie ${nx ? dm(nx > today ? nx : today) : 'po 4 pomiarach w ciągu 3 tygodni'}`}.</b>` +
+    ` % tłuszczu z wagi łazienkowej waha się z nawodnieniem — patrz na trend${bt ? ` (${p1(bt.v)} pkt / mies.)` : ''}; kalorie koryguje waga.`;
+};
 const wkPlanTxt = () => {
   let k = 0, b = 0;
   for (let i = 0; i < 7; i++) { const g = goalOf({ type: wkType(i) }, todayISO()); k += g.kcal; b += g.burn; }
@@ -1573,7 +1653,13 @@ function settingsHTML() {
     `<div class="tg"><span></span><span class="h">od</span><span class="h">cel</span><span class="h">do</span>` +
       `<span>Tłuszcz, %<small>${bodyAt().f.n ? `teraz ${kgFmt(bodyAt().f.bf)} (średnia 7 dni)` : 'brak pomiarów'}</small></span>` +
       [['lo', 'od'], ['mid', 'cel'], ['hi', 'do']].map(([f, l]) => `<input inputmode="decimal" autocomplete="off" data-bfz="${f}" value="${kgFmt(bfSet()[f])}" aria-label="Tłuszcz ${l}, %">`).join('') + `</div>` +
+    `<div class="tg"><span></span><span class="h">kg/mies.</span><span class="h">korekta</span><span class="h">auto</span>` +
+      `<span>Przyrost wagi przy celu<small>${trendAt('kg') ? `teraz ${kgTxt(trendAt('kg').v)} kg/mies. (4 tyg.)` : 'za mało pomiarów'}</small></span>` +
+      `<input inputmode="decimal" autocomplete="off" data-rate="1" value="${rateFmt(rateSet())}" aria-label="Przyrost wagi przy celu tłuszczu, kg na miesiąc">` +
+      `<input inputmode="text" autocomplete="off" data-adj="1" value="${adjK() > 0 ? '+' : ''}${adjK()}" aria-label="Korekta z wagi, kcal na dzień">` +
+      `<label class="chk"><input type="checkbox" data-adjon="1" ${S.settings.adjOff ? '' : 'checked'} aria-label="Korekta z wagi automatycznie"></label></div>` +
     `<p>${weightTxt()}</p>` +
+    `<p>${adjTxt()}</p>` +
     `<div class="tg"><span></span>${TG_FIELDS.map(([, l]) => `<span class="h">${l}</span>`).join('')}` +
     Object.keys(TYPES).map(k => `<span>${esc(TYPES[k].n)}<small>cel ${k0(goalOf({ type: k }, todayISO()).kcal)}</small></span>` + TG_FIELDS.map(([f, l]) =>
       `<input ${f === 'plus' ? 'inputmode="text"' : 'inputmode="numeric"'} autocomplete="off" data-tg="${k}" data-f="${f}" value="${f === 'act' ? predBurn(k) : f === 'b' ? goalOf({ type: k }, todayISO()).b : (f === 'plus' && T(k)[f] > 0 ? '+' : '') + T(k)[f]}" aria-label="${esc(TYPES[k].n)}: ${l}">`).join('')).join('') + `</div>` +
@@ -1848,7 +1934,7 @@ function importData(file) {
       if (!S.settings.targets) S.settings.targets = {};
       if (!S.settings.slots) S.settings.slots = {};
       if (!S.settings.customSlots) S.settings.customSlots = [];
-      migrate(); buildFoods(); persist(); S.setOpen = true; render(true);
+      migrate(); buildFoods(); KG = null; runAdj(); persist(); S.setOpen = true; render(true);
       $('#io-msg').textContent = `Wczytano kopię z ${String(o.saved || '').slice(0, 10)}.`;
     } catch (e) { $('#io-msg').textContent = 'To nie jest plik kopii z tej aplikacji.'; }
   };
@@ -1932,7 +2018,7 @@ document.addEventListener('click', ev => {
     case 'fed-del':
       if (!ds.armed) { ds.armed = '1'; t.textContent = 'Na pewno usunąć?'; t.classList.add('armed'); return; }
       removeFood(FE.id); return;
-    case 'tgreset': S.settings.targets = {}; delete S.settings.bfz; persist(); render(true); return;
+    case 'tgreset': S.settings.targets = {}; delete S.settings.bfz; delete S.settings.rate; persist(); render(true); return;
     case 'snew': openSlot(null); return;
     case 'sed-cancel': closeDlg($('#sed')); return;
     case 'sed-base': FS('n').value = SLOTS[SE.id].n; FS('t').value = SLOTS[SE.id].t; return;
@@ -1954,14 +2040,21 @@ document.addEventListener('change', ev => {
     else { render(true); return; }
     persist(); render(true); return;
   }
-  if (t.dataset && (t.dataset.tg || t.dataset.base || t.dataset.bfz)) { render(true); return; }
+  if (t.dataset && (t.dataset.tg || t.dataset.base || t.dataset.bfz || t.dataset.rate)) { render(true); return; }
+  // korekta z wagi: wpis ręczny (od dziś) i włączenie / wyłączenie automatycznej
+  if (t.dataset && t.dataset.adj) {
+    const v = parseInt(t.value.replace(/[−–]/, '-').replace('+', '').trim() || '0', 10);
+    if (v >= -1000 && v <= 1000) { setAdj(Math.round(v / 10) * 10); persist(); }
+    render(true); return;
+  }
+  if (t.dataset && t.dataset.adjon) { if (t.checked) { delete S.settings.adjOff; runAdj(); } else S.settings.adjOff = true; persist(); render(true); return; }
   // waga rano (puste = usuń pomiar)
   if (t.dataset && t.dataset.kg) {
     const raw = t.value.trim().replace(',', '.'), v = parseFloat(raw), date = t.dataset.kg;
     if (raw === '') { if (S.days[date]) delete S.days[date].kg; }
     else if (v >= 30 && v <= 250) mat(date).kg = Math.round(v * 10) / 10;
     else { render(true); return; }
-    persist(); render(true); return;
+    KG = null; runAdj(); persist(); render(true); return;
   }
   // % tkanki tłuszczowej (puste = usuń pomiar)
   if (t.dataset && t.dataset.bf) {
@@ -2005,6 +2098,10 @@ document.addEventListener('input', ev => {
     if (!(z.lo >= 3 && z.lo < z.mid && z.mid < z.hi && z.hi <= 40)) return;
     S.settings.bfz = z; persist();
   }
+  if (t.dataset && t.dataset.rate) {
+    const v = parseFloat(t.value.replace(',', '.'));
+    if (v >= 0 && v <= 2) { S.settings.rate = Math.round(v * 20) / 20; persist(); }
+  }
   if (t.dataset && t.dataset.base) {
     const f = t.dataset.base, v = parseFloat(t.value.replace(',', '.'));
     if (!(f === 'k' ? v >= 1000 && v <= 4000 : f === 'bf' ? v >= 3 && v <= 60 : v >= 30 && v <= 250)) return;
@@ -2018,12 +2115,12 @@ document.addEventListener('toggle', ev => {
 }, true);
 $('#own-form').addEventListener('submit', ev => { ev.preventDefault(); addOwn(); });
 // Enter w polu gramów: zatwierdź bez wysyłania formularza
-document.addEventListener('keydown', ev => { if (ev.key === 'Enter' && (ev.target.id === 'pk-grams' || ev.target.id === 'pk-pcs' || (ev.target.dataset && (ev.target.dataset.grams || ev.target.dataset.pcs || ev.target.dataset.burn || ev.target.dataset.kg || ev.target.dataset.bf || ev.target.dataset.bfz || ev.target.dataset.base || ev.target.dataset.tg)))) { ev.preventDefault(); ev.target.blur(); } });
+document.addEventListener('keydown', ev => { if (ev.key === 'Enter' && (ev.target.id === 'pk-grams' || ev.target.id === 'pk-pcs' || (ev.target.dataset && (ev.target.dataset.grams || ev.target.dataset.pcs || ev.target.dataset.burn || ev.target.dataset.kg || ev.target.dataset.bf || ev.target.dataset.bfz || ev.target.dataset.rate || ev.target.dataset.adj || ev.target.dataset.base || ev.target.dataset.tg)))) { ev.preventDefault(); ev.target.blur(); } });
 fform.addEventListener('submit', ev => { ev.preventDefault(); saveFood(); });
 $('#import-file').addEventListener('change', ev => { const f = ev.target.files && ev.target.files[0]; if (f) importData(f); ev.target.value = ''; });
 window.addEventListener('hashchange', () => render());
 // Po północy (aplikacja otwarta w tle) — przejdź na nowy dzień
-document.addEventListener('visibilitychange', () => { if (!document.hidden && S.follow && S.date !== todayISO()) render(); });
+document.addEventListener('visibilitychange', () => { if (!document.hidden && S.follow && S.date !== todayISO()) { runAdj(); render(); } });
 
 /* ---------- Start ---------- */
 // Jednorazowo — v9: cel liczony z wydatku (stare stałe cele kcal i wydatki znikają), poniedziałek domyślnie siłowy;
@@ -2049,6 +2146,7 @@ function migrate() {
   if (had) persist();
 }
 migrate();
+runAdj();
 render();
 if ('serviceWorker' in navigator && location.protocol === 'https:') {
   window.addEventListener('load', () => { navigator.serviceWorker.register('sw.js').catch(() => {}); });
