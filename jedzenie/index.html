@@ -1017,10 +1017,11 @@ const DEF_TYPE = ['nd', 'sil', 'sil', 'bieg', 'sil', 'sil', 'sob']; // według g
 const TG_FIELDS = [['act', 'wydatek'], ['plus', 'nadwyżka'], ['b', 'białko']];
 // Bez aktywności (spoczynek + minimum ruchu, z zegarka) i masa, przy której to odczytano; ~12 kcal na każdy kg (nachylenie BMR × ~1,2)
 // Z pomiarem tłuszczu: ~15 kcal na kg masy beztłuszczowej i ~5 na kg tłuszczu (bf = % tłuszczu, przy którym ustawione są cele)
-const BASE_DEF = { k: 2015, kg: 71, bf: 15 }, KCAL_PER_KG = 12, KCAL_LEAN = 15, KCAL_FAT = 5;
+const BASE_DEF = { k: 2015, kg: 71, bf: 15.1 }, KCAL_PER_KG = 12, KCAL_LEAN = 15, KCAL_FAT = 5;
 const WEIGH_DAY = 5; // pole ważenia jest na górze każdego dnia, w piątek wyróżnione
-// Cel: przyrost mięśni przy 12–15% tłuszczu (średnia 7 dni) — powyżej 15% bez nadwyżki (utrzymanie), poniżej 12% nadwyżka +100
-const BF_LO = 12, BF_HI = 15, BF_UP = 100;
+// Cel: przyrost mięśni przy 11–16% tłuszczu, najlepiej 13% (średnia 7 dni). Nadwyżka z planu przy 13%; powyżej maleje do 0 przy 16%
+// (wyżej — utrzymanie), poniżej rośnie do +100 przy 11% (niżej — +100). Zakres i cel można zmienić w ustawieniach (settings.bfz).
+const BFZ_DEF = { lo: 11, mid: 13, hi: 16 }, BF_UP = 100;
 
 /* ---------- Pomocnicze ---------- */
 const $ = (s, el = document) => el.querySelector(s);
@@ -1274,18 +1275,26 @@ const baseAt = date => {
 const predBurn = (type, date) => baseAt(date) + T(type).act;
 // Wydatek dnia: z zegarka, jeśli wpisany, inaczej przewidywany
 const burnOf = (d, date) => d.burn != null ? d.burn : predBurn(d.type, date);
-// Strefa tłuszczu (średnia 7 dni): 1 = powyżej 15% (bez nadwyżki), −1 = poniżej 12% (większa nadwyżka); dzień postu bez zmian
-const bfZone = (type, f) => type === 'post' || !f.n ? 0 : f.bf > BF_HI ? 1 : f.bf < BF_LO ? -1 : 0;
+const bfSet = () => ({ ...BFZ_DEF, ...(S.settings.bfz || {}) });
+// Nadwyżka przy średnim % tłuszczu (zaokrąglona do 10 kcal); dzień postu, brak pomiaru albo plan bez nadwyżki — bez zmian
+function plusAt(type, plan, f) {
+  if (type === 'post' || !f.n || plan <= 0) return plan;
+  const z = bfSet(), x = f.bf, r10 = v => Math.round(v / 10) * 10;
+  if (x >= z.hi) return 0;
+  if (x > z.mid) return r10(plan * (z.hi - x) / (z.hi - z.mid));
+  if (x > z.lo) return r10(plan + BF_UP * (z.mid - x) / (z.mid - z.lo));
+  return plan + BF_UP;
+}
 // Cel dnia: jedzenie = wydatek + nadwyżka (zależna od strefy tłuszczu); białko rośnie z masą beztłuszczową, tłuszcz z masą ciała
 // (w tabeli celów — przy masie i % tłuszczu z ustawień); węglowodany = reszta kalorii
 function goalOf(d, date) {
-  const ty = T(d.type), burn = burnOf(d, date), x = bodyAt(date), r = refBody(), zone = bfZone(d.type, x.f);
-  const plus = zone > 0 ? Math.min(ty.plus, 0) : zone < 0 ? ty.plus + BF_UP : ty.plus, kcal = Math.max(0, burn + plus);
+  const ty = T(d.type), burn = burnOf(d, date), x = bodyAt(date), r = refBody();
+  const plus = plusAt(d.type, ty.plus, x.f), zone = plus === ty.plus ? 0 : x.f.bf > bfSet().mid ? 1 : -1, kcal = Math.max(0, burn + plus);
   const b = Math.round(ty.b * x.lbm / r.lbm), t = Math.round(ty.t * x.kg / r.kg);
   return { kcal, b, t, w: Math.max(0, (kcal - b * 4 - t * 9) / 4), burn, plus, plan: ty.plus, zone, bf: x.f.bf };
 }
 // Dopisek do nadwyżki, gdy zmienia ją % tłuszczu
-const zoneTxt = g => g.zone > 0 ? `utrzymanie — tłuszcz ${kgFmt(g.bf)}%, powyżej ${BF_HI}%` : g.zone < 0 ? `nadwyżka +${BF_UP} większa — tłuszcz ${kgFmt(g.bf)}%, poniżej ${BF_LO}%` : '';
+const zoneTxt = g => { const z = bfSet(); return !g.zone ? '' : g.bf >= z.hi ? `utrzymanie — tłuszcz ${kgFmt(g.bf)}%, od ${kgFmt(z.hi)}% w górę` : `${g.zone > 0 ? 'mniejsza' : 'większa'} nadwyżka — tłuszcz ${kgFmt(g.bf)}%, cel ${kgFmt(z.mid)}%`; };
 const plusTxt = p => p < 0 ? `deficyt ${k0(-p)}` : `nadwyżka +${k0(p)}`;
 // Zakończone dni z wpisami (bez dzisiejszego — dzień w trakcie zaniżałby średnie i bilans)
 function stats(dates) {
@@ -1456,7 +1465,7 @@ function weekPlanHTML(dates) {
     (wf.length ? `<p>Tłuszcz: <b>${kgFmt(avg(wf))}%</b>${pf.length ? ` (tydzień wcześniej ${kgFmt(avg(pf))}%)` : ''} · beztłuszczowa ${kgFmt(lean(wk, wf))} kg${pf.length && pw.length ? ` (${kgTxt(lean(wk, wf) - lean(pw, pf))} kg)` : ''}</p>` : '');
   else { const w = weightAt(dates[n - 1]); h += `<p>Masa: ${w.n ? `${kgFmt(w.kg)} kg (ostatni pomiar ${dm(w.last)})` : 'brak pomiarów'} · ważenie: pole na górze dnia</p>`; }
   const zg = goalOf({ type: 'sil' }, dates[n - 1] > today ? today : dates[n - 1]);
-  if (zg.zone) h += `<p><small>${zg.zone > 0 ? `Tłuszcz ${kgFmt(zg.bf)}% (średnia 7 dni) — powyżej ${BF_HI}%: cele bez nadwyżki, aż średnia wróci do ${BF_HI}%.` : `Tłuszcz ${kgFmt(zg.bf)}% (średnia 7 dni) — poniżej ${BF_LO}%: nadwyżka większa o ${BF_UP} kcal / dzień.`}</small></p>`;
+  if (zg.zone) { const z = bfSet(); h += `<p><small>Tłuszcz ${kgFmt(zg.bf)}% (średnia 7 dni; cel ${kgFmt(z.mid)}%, zakres ${kgFmt(z.lo)}–${kgFmt(z.hi)}%): nadwyżka w dzień siłowy ${sgn(zg.plus)} zamiast ${sgn(zg.plan)} kcal${zg.bf >= z.hi ? ' — utrzymanie, aż średnia spadnie poniżej ' + kgFmt(z.hi) + '%' : ''}.</small></p>`; }
   if (nd) h += `<p>${nr ? 'Dotąd' : 'Zjedzone'} (${nd} ${dniTxt(nd)} z wpisami): <b>${k0(de)}</b> z planu ${k0(dg)} kcal <small>(${sgn(de - dg)})</small></p>`;
   if (nr && nd) {
     // różnica z minionych dni rozłożona po równo na dziś i resztę tygodnia — dopisek do celu każdego dnia
@@ -1535,7 +1544,7 @@ const weightTxt = () => {
   return (w.n ? `Masa teraz: ${kgFmt(w.kg)} kg${x.f.n ? `, tłuszcz ${kgFmt(x.f.bf)}% (beztłuszczowa ${kgFmt(x.lbm)} kg)` : ''} — ${kgSrc(w)}.` : 'Brak pomiarów wagi — liczę z masy powyżej.') +
     ` Waż się rano, kiedy chcesz — liczy się średnia z 7 dni wstecz, więc skoki po weekendzie się wyrównują.` +
     ` Bez aktywności: ~${KCAL_PER_KG} kcal na kg masy, z % tłuszczu ~${KCAL_LEAN} na kg masy beztłuszczowej i ~${KCAL_FAT} na kg tłuszczu. Białko rośnie z masą beztłuszczową, tłuszcz z masą (tabela niżej — dla obecnej masy).` +
-    ` Cel: mięśnie przy ${BF_LO}–${BF_HI}% tłuszczu — powyżej ${BF_HI}% bez nadwyżki, poniżej ${BF_LO}% nadwyżka +${BF_UP}.` +
+    ` Cel: mięśnie przy ${kgFmt(bfSet().lo)}–${kgFmt(bfSet().hi)}% tłuszczu, najlepiej ${kgFmt(bfSet().mid)}% — przy celu nadwyżka z tabeli, powyżej maleje (0 przy ${kgFmt(bfSet().hi)}%), poniżej rośnie (+${BF_UP} przy ${kgFmt(bfSet().lo)}%).` +
     (g.zone ? ` <b>Teraz: ${zoneTxt(g)}.</b>` : '');
 };
 const wkPlanTxt = () => {
@@ -1561,6 +1570,9 @@ function settingsHTML() {
       `<input inputmode="numeric" autocomplete="off" data-base="k" value="${baseSet().k}" aria-label="Bez aktywności: kcal z zegarka">` +
       `<input inputmode="decimal" autocomplete="off" data-base="kg" value="${kgFmt(baseSet().kg)}" aria-label="Masa przy tej wartości, kg">` +
       `<input inputmode="decimal" autocomplete="off" data-base="bf" value="${kgFmt(baseSet().bf)}" aria-label="Tkanka tłuszczowa przy tej wartości, %"></div>` +
+    `<div class="tg"><span></span><span class="h">od</span><span class="h">cel</span><span class="h">do</span>` +
+      `<span>Tłuszcz, %<small>${bodyAt().f.n ? `teraz ${kgFmt(bodyAt().f.bf)} (średnia 7 dni)` : 'brak pomiarów'}</small></span>` +
+      [['lo', 'od'], ['mid', 'cel'], ['hi', 'do']].map(([f, l]) => `<input inputmode="decimal" autocomplete="off" data-bfz="${f}" value="${kgFmt(bfSet()[f])}" aria-label="Tłuszcz ${l}, %">`).join('') + `</div>` +
     `<p>${weightTxt()}</p>` +
     `<div class="tg"><span></span>${TG_FIELDS.map(([, l]) => `<span class="h">${l}</span>`).join('')}` +
     Object.keys(TYPES).map(k => `<span>${esc(TYPES[k].n)}<small>cel ${k0(goalOf({ type: k }, todayISO()).kcal)}</small></span>` + TG_FIELDS.map(([f, l]) =>
@@ -1920,7 +1932,7 @@ document.addEventListener('click', ev => {
     case 'fed-del':
       if (!ds.armed) { ds.armed = '1'; t.textContent = 'Na pewno usunąć?'; t.classList.add('armed'); return; }
       removeFood(FE.id); return;
-    case 'tgreset': S.settings.targets = {}; persist(); render(true); return;
+    case 'tgreset': S.settings.targets = {}; delete S.settings.bfz; persist(); render(true); return;
     case 'snew': openSlot(null); return;
     case 'sed-cancel': closeDlg($('#sed')); return;
     case 'sed-base': FS('n').value = SLOTS[SE.id].n; FS('t').value = SLOTS[SE.id].t; return;
@@ -1942,7 +1954,7 @@ document.addEventListener('change', ev => {
     else { render(true); return; }
     persist(); render(true); return;
   }
-  if (t.dataset && (t.dataset.tg || t.dataset.base)) { render(true); return; }
+  if (t.dataset && (t.dataset.tg || t.dataset.base || t.dataset.bfz)) { render(true); return; }
   // waga rano (puste = usuń pomiar)
   if (t.dataset && t.dataset.kg) {
     const raw = t.value.trim().replace(',', '.'), v = parseFloat(raw), date = t.dataset.kg;
@@ -1988,6 +2000,11 @@ document.addEventListener('input', ev => {
     S.settings.targets[k] = { ...(S.settings.targets[k] || {}), [f]: f === 'act' ? v - baseAt() : f === 'b' ? Math.round(v * refBody().lbm / bodyAt().lbm * 10) / 10 : v };
     persist();
   }
+  if (t.dataset && t.dataset.bfz) {
+    const z = { ...bfSet(), [t.dataset.bfz]: Math.round(parseFloat(t.value.replace(',', '.')) * 10) / 10 };
+    if (!(z.lo >= 3 && z.lo < z.mid && z.mid < z.hi && z.hi <= 40)) return;
+    S.settings.bfz = z; persist();
+  }
   if (t.dataset && t.dataset.base) {
     const f = t.dataset.base, v = parseFloat(t.value.replace(',', '.'));
     if (!(f === 'k' ? v >= 1000 && v <= 4000 : f === 'bf' ? v >= 3 && v <= 60 : v >= 30 && v <= 250)) return;
@@ -2001,7 +2018,7 @@ document.addEventListener('toggle', ev => {
 }, true);
 $('#own-form').addEventListener('submit', ev => { ev.preventDefault(); addOwn(); });
 // Enter w polu gramów: zatwierdź bez wysyłania formularza
-document.addEventListener('keydown', ev => { if (ev.key === 'Enter' && (ev.target.id === 'pk-grams' || ev.target.id === 'pk-pcs' || (ev.target.dataset && (ev.target.dataset.grams || ev.target.dataset.pcs || ev.target.dataset.burn || ev.target.dataset.kg || ev.target.dataset.bf || ev.target.dataset.base || ev.target.dataset.tg)))) { ev.preventDefault(); ev.target.blur(); } });
+document.addEventListener('keydown', ev => { if (ev.key === 'Enter' && (ev.target.id === 'pk-grams' || ev.target.id === 'pk-pcs' || (ev.target.dataset && (ev.target.dataset.grams || ev.target.dataset.pcs || ev.target.dataset.burn || ev.target.dataset.kg || ev.target.dataset.bf || ev.target.dataset.bfz || ev.target.dataset.base || ev.target.dataset.tg)))) { ev.preventDefault(); ev.target.blur(); } });
 fform.addEventListener('submit', ev => { ev.preventDefault(); saveFood(); });
 $('#import-file').addEventListener('change', ev => { const f = ev.target.files && ev.target.files[0]; if (f) importData(f); ev.target.value = ''; });
 window.addEventListener('hashchange', () => render());
