@@ -219,6 +219,10 @@ main { padding-block: 10px 120px; display: grid; gap: 8px; }
 .pk-k small { display: block; font-weight: 400; color: var(--muted); font-size: 0.78rem; }
 .rmlist { display: grid; gap: 6px; }
 .rmlist div { display: flex; justify-content: space-between; align-items: center; gap: 10px; }
+.rmlist .acts { display: flex; gap: 6px; flex: none; margin-left: auto; }
+.frm > div { flex-wrap: wrap; row-gap: 6px; }
+.frm > div > span:first-child { flex: 1 1 7em; }
+.btn-del.sm { height: 40px; padding: 0 10px; font-size: 0.85rem; }
 .hint { margin: 0; color: var(--muted); font-size: 0.85rem; }
 
 /* Ustawienia */
@@ -1250,7 +1254,7 @@ const closeDlg = el => { if (el.close) el.close(); else el.removeAttribute('open
 // days[data] = { type, items: [{ id, s: posiłek, f: id jedzenia, v: 'L'|'P', n, k, b, t, w, q: porcje, ok: zjedzone, p: z planu }] }
 // Każdy wpis pamięta kalorie z chwili dodania — późniejsza zmiana produktu nie przelicza minionych dni.
 const KEY = 'jedzenie-dziennik-v1';
-const normFoods = p => ({ edits: (p && p.edits) || {}, added: (p && p.added) || [], removed: (p && p.removed) || [] });
+const normFoods = p => ({ edits: (p && p.edits) || {}, added: (p && p.added) || [], removed: (p && p.removed) || [], gone: (p && p.gone) || [] }); // gone — produkty z planu usunięte trwale
 const S = { days: {}, foods: normFoods(), settings: { targets: {} }, pq: {}, popen: {}, view: 'dzien', date: todayISO(), follow: true, week: null, month: null, open: {}, toast: null, flashId: null, setOpen: false, banner: '' };
 try {
   const raw = localStorage.getItem(KEY);
@@ -1276,7 +1280,7 @@ try { if (navigator.storage && navigator.storage.persist) navigator.storage.pers
 
 let FOODS = [], FM = {};
 function buildFoods() {
-  const rm = new Set(S.foods.removed);
+  const rm = new Set(S.foods.removed.concat(S.foods.gone));
   FOODS = BASE_FOODS.filter(f => !rm.has(f.id)).map(f => {
     const e = S.foods.edits[f.id] || {}, o = { ...f, ...e };
     if (!('ing' in e) && MAC.some(m => m in e)) delete o.ing; // kalorie wpisane ręcznie (sprzed składników) — bez listy składników
@@ -1786,6 +1790,7 @@ const prow = f => `<button type="button" class="prow" data-fedit="${f.id}"><span
 const MEAL_CATS = new Set(['rano', 'sniad', 'przek', 'jog', 'obiad', 'kol', 'post', 'posilki']);
 const isMeal = f => !!f.ing || MEAL_CATS.has(f.c);
 const inView = (f, kind) => isMeal(f) === (kind === 'posilki');
+const rmFoods = kind => S.foods.removed.map(id => S.foods.added.find(a => a.id === id) || (BASEM[id] && { ...BASEM[id], ...(S.foods.edits[id] || {}) })).filter(f => f && inView(f, kind));
 function plistHTML(kind) {
   const q = norm((S.pq[kind] || '').trim()), pool = FOODS.filter(f => inView(f, kind));
   if (q) {
@@ -1802,10 +1807,12 @@ function prodHTML(kind) {
   let h = (meal ? `<button type="button" class="addex" data-act="cm-newp">+ Złóż posiłek ze składników</button>` : `<button type="button" class="addex" data-act="fnew">+ Dodaj produkt</button>`) +
     `<div class="psearch"><input id="pq" data-kind="${kind}" type="search" placeholder="Szukaj ${what}…" autocomplete="off" value="${esc(S.pq[kind] || '')}" aria-label="Szukaj ${what}"></div>` +
     `<div class="plist" id="plist">${plistHTML(kind)}</div>`;
-  const rm = S.foods.removed.map(id => S.foods.added.find(a => a.id === id) || (BASEM[id] && { ...BASEM[id], ...(S.foods.edits[id] || {}) })).filter(f => f && inView(f, kind));
+  const rm = rmFoods(kind);
   if (rm.length) {
-    h += `<section class="settings"><div class="body"><p><b>Usunięte</b> — możesz je przywrócić:</p><div class="rmlist">` +
-      rm.map(f => `<div><span>${esc(f.n)}</span><button type="button" class="btn2" data-frestore="${f.id}">Przywróć</button></div>`).join('') + `</div></div></section>`;
+    h += `<section class="settings"><div class="body"><p><b>Usunięte</b> — przywróć albo usuń trwale (trwale usuniętego nie da się przywrócić; wpisy w dniach zostają).</p><div class="rmlist frm">` +
+      rm.map(f => `<div><span>${esc(f.n)}</span><span class="acts"><button type="button" class="btn2 sm" data-frestore="${f.id}">Przywróć</button>` +
+        `<button type="button" class="btn-del sm" data-fpurge="${f.id}" aria-label="Usuń trwale: ${esc(f.n)}">Usuń trwale</button></span></div>`).join('') + `</div>` +
+      (rm.length > 1 ? `<div class="btnrow"><button type="button" class="btn-del" data-act="fpurge-all">Usuń trwale wszystkie (${rm.length})</button></div>` : '') + `</div></section>`;
   }
   return h + `<p class="hint">Zmiana działa od teraz: na nowe wpisy i niezjedzone pozycje planu od dziś. Minione dni i to, co już dodane albo odhaczone, zostają bez zmian.` +
     ` Zmiana produktu przelicza też posiłki, w których jest składnikiem — również tylko od teraz.</p>`;
@@ -2087,6 +2094,26 @@ function removeFood(id) {
   render(true);
 }
 function restoreFood(id) { S.foods.removed = S.foods.removed.filter(x => x !== id); buildFoods(); persist(); render(true); }
+// Trwałe usunięcie z listy „Usunięte”: własny produkt znika z danych, produkt z planu zostaje ukryty na stałe (bez swoich zmian).
+// Wpisy dni i składniki innych posiłków zostają bez zmian — pamiętają wartości z chwili dodania.
+function purgeFood(ids) {
+  const F = S.foods, names = ids.map(id => (rmFoods('posilki').concat(rmFoods('produkty')).find(f => f.id === id) || {}).n || '');
+  const back = ids.map(id => ({ id, a: F.added.find(x => x.id === id), i: F.added.findIndex(x => x.id === id), e: F.edits[id] }));
+  F.removed = F.removed.filter(id => !ids.includes(id));
+  F.added = F.added.filter(a => !ids.includes(a.id));
+  for (const id of ids) if (BASEM[id]) { delete F.edits[id]; if (!F.gone.includes(id)) F.gone.push(id); }
+  buildFoods(); persist();
+  S.toast = { view: S.view, text: ids.length > 1 ? `Usunięto trwale (${ids.length}).` : `Usunięto trwale „${names[0]}”.`, undo: () => {
+    const G = S.foods;
+    for (const x of back.filter(x => x.a).sort((p, q) => p.i - q.i)) if (!G.added.includes(x.a)) G.added.splice(Math.min(x.i, G.added.length), 0, x.a);
+    for (const x of back) {
+      if (BASEM[x.id]) { G.gone = G.gone.filter(g => g !== x.id); if (x.e) G.edits[x.id] = x.e; }
+      if (!G.removed.includes(x.id)) G.removed.push(x.id);
+    }
+    buildFoods(); persist(); render(true);
+  } };
+  render(true);
+}
 
 /* ---------- Składniki: składanie posiłku i zmiana składników ---------- */
 // mode: 'food' — lista produktu z edytora (wraca do edytora), 'entry' — wpis dnia (tylko ten dzień, opcjonalnie też produkt),
@@ -2375,6 +2402,10 @@ document.addEventListener('click', ev => {
   if (ds.sedit) { openSlot(ds.sedit); return; }
   if (ds.srestore) { setSlotHidden(ds.srestore, false); render(true); return; }
   if (ds.frestore) { restoreFood(ds.frestore); return; }
+  if (ds.fpurge) {
+    if (!ds.armed) { ds.armed = '1'; t.textContent = 'Na pewno?'; t.classList.add('armed'); return; }
+    purgeFood([ds.fpurge]); return;
+  }
   switch (ds.act) {
     case 'today': goDate(todayISO()); return;
     case 'thisweek': S.week = null; render(true); return;
@@ -2416,6 +2447,9 @@ document.addEventListener('click', ev => {
     }
     case 'fed-cancel': closeDlg($('#fed')); return;
     case 'fed-base': fillFood({ ...BASEM[FE.id] }); $('#fed-err').textContent = 'Wpisane wartości z planu — zatwierdź „Zapisz”.'; return;
+    case 'fpurge-all':
+      if (!ds.armed) { ds.armed = '1'; t.textContent = 'Na pewno usunąć trwale wszystkie?'; t.classList.add('armed'); return; }
+      purgeFood(rmFoods(S.view).map(f => f.id)); return;
     case 'fed-del':
       if (!ds.armed) { ds.armed = '1'; t.textContent = 'Na pewno usunąć?'; t.classList.add('armed'); return; }
       removeFood(FE.id); return;
@@ -2535,7 +2569,7 @@ document.addEventListener('visibilitychange', () => { if (!document.hidden && S.
 function migrate() {
   const mv = S.settings.mv || 0;
   if (mv >= 12) return;
-  const had = Object.keys(S.days).length || Object.keys(S.settings.targets).length || S.foods.removed.length || S.foods.added.length; // świeża instalacja — nic nie zapisuj
+  const had = Object.keys(S.days).length || Object.keys(S.settings.targets).length || S.foods.removed.length || S.foods.added.length || S.foods.gone.length; // świeża instalacja — nic nie zapisuj
   for (const k of Object.keys(S.settings.targets)) {
     const o = S.settings.targets[k] || {};
     if (mv < 9) delete o.kcal;
