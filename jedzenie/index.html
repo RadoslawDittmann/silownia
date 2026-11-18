@@ -1289,6 +1289,31 @@ function buildFoods() {
       return f;
     });
   FM = Object.fromEntries(FOODS.map(f => [f.id, f]));
+  // Składniki posiłków biorą aktualne wartości produktów — zmiana produktu przelicza posiłki (nowe wpisy; wpisy dni zostają bez zmian).
+  // Kilka przebiegów: posiłek może być składnikiem innego posiłku.
+  for (let pass = 0; pass < 3; pass++) {
+    let changed = false;
+    for (const f of FOODS) {
+      const r = f.ing && liveRows(f.ing, f.id);
+      if (r) { f.ing = r; Object.assign(f, ingVal(r, f.por, f.rest)); changed = true; }
+      const rl = f.L && f.L.ing && liveRows(f.L.ing, f.id);
+      if (rl) { f.L = { ...f.L, ing: rl, ...ingVal(rl, f.por, f.L.rest) }; changed = true; }
+    }
+    if (!changed) break;
+  }
+}
+// Wiersze składników z obecnymi wartościami produktów (null — bez zmian); przy zmianie wagi jednostki zostają te same gramy
+function liveRows(rows, self) {
+  let diff = false;
+  const out = rows.map(r => {
+    const p = r.f && r.f !== self && FM[r.f];
+    if (!p) return r;
+    const n = { ...snap(p, r.v), q: r.g && p.g && r.g !== p.g ? R3(r.q * r.g / p.g) : r.q };
+    if (JSON.stringify(n) === JSON.stringify(r)) return r;
+    diff = true;
+    return n;
+  });
+  return diff ? out : null;
 }
 buildFoods();
 
@@ -1783,7 +1808,7 @@ function prodHTML(kind) {
       rm.map(f => `<div><span>${esc(f.n)}</span><button type="button" class="btn2" data-frestore="${f.id}">Przywróć</button></div>`).join('') + `</div></div></section>`;
   }
   return h + `<p class="hint">Zmiana działa od teraz: na nowe wpisy i niezjedzone pozycje planu od dziś. Minione dni i to, co już dodane albo odhaczone, zostają bez zmian.` +
-    (meal ? ' Zmiana produktu nie zmienia posiłków, w których jest składnikiem.' : '') + `</p>`;
+    ` Zmiana produktu przelicza też posiłki, w których jest składnikiem — również tylko od teraz.</p>`;
 }
 
 const learnTxt = () => {
@@ -1965,8 +1990,9 @@ function fillFood(f) {
   FF('hasL').checked = !!f.L;
   // składniki: kopia robocza — zapis dopiero przyciskiem „Zapisz”; wyrównanie do planu zawsze z planu
   const b = FE.id && BASEM[FE.id];
-  FE.ing = f.ing ? f.ing.map(r => ({ ...r })) : null;
-  FE.Ling = f.L && f.L.ing ? f.L.ing.map(r => ({ ...r })) : null;
+  const live = rows => (liveRows(rows, FE.id) || rows).map(r => ({ ...r }));
+  FE.ing = f.ing ? live(f.ing) : null;
+  FE.Ling = f.L && f.L.ing ? live(f.L.ing) : null;
   FE.por = f.por || 1;
   FE.rest = (b && b.rest) || null;
   FE.Lrest = (b && b.L && b.L.rest) || null;
@@ -2034,7 +2060,13 @@ function saveFood() {
   const id = FE.id;
   if (id && BASEM[id]) {
     const b = BASEM[id], d = {};
-    for (const k of ['n', 'c', 'u', 'g', 'pc', 'k', 'b', 't', 'w', 'd', 'r', 'L', 'ing', 'por']) if (!same(v[k] === '' ? null : v[k], b[k] === '' ? null : b[k])) d[k] = v[k];
+    // składniki porównywane składem i ilościami — przeliczenie po zmianie produktu nie jest zmianą posiłku (wartości liczą się przy budowie listy)
+    const ingSame = !!(v.ing && b.ing) && ingKey(v.ing) === ingKey(b.ing) && (v.por || 1) === (b.por || 1);
+    const Lsame = (x, y) => x && y && x.ing && y.ing ? ingKey(x.ing) === ingKey(y.ing) && (x.d || '') === (y.d || '') : same(x, y);
+    for (const k of ['n', 'c', 'u', 'g', 'pc', 'k', 'b', 't', 'w', 'd', 'r', 'L', 'ing', 'por']) {
+      if (ingSame && (MAC.includes(k) || k === 'ing' || k === 'por')) continue;
+      if (k === 'L' ? !Lsame(v.L, b.L) : !same(v[k] === '' ? null : v[k], b[k] === '' ? null : b[k])) d[k] = v[k];
+    }
     if (Object.keys(d).length) S.foods.edits[id] = d; else delete S.foods.edits[id];
   } else if (id) {
     const a = S.foods.added.find(x => x.id === id);
