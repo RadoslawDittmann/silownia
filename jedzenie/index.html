@@ -72,13 +72,15 @@ button { cursor: pointer; -webkit-tap-highlight-color: transparent; }
 .brand { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
 .brand h1 { font-size: 1.25rem; text-transform: uppercase; letter-spacing: 0.03em; }
 .today { color: var(--muted); font-size: 0.85rem; font-variant-numeric: tabular-nums; }
-.tabs { display: flex; gap: 4px; margin-left: -7px; }
+.tabs { display: flex; justify-content: space-between; margin: 0 -6px; overflow-x: auto; scrollbar-width: none; }
+.tabs::-webkit-scrollbar { display: none; }
 .tab {
-  border: 0; background: none; padding: 6px 6px 8px; border-bottom: 3px solid transparent;
+  flex: none; border: 0; background: none; padding: 6px 6px 8px; border-bottom: 3px solid transparent;
   min-height: 44px; font-family: var(--font-display); font-size: 1rem; font-weight: 700;
   text-transform: uppercase; letter-spacing: 0.02em; color: var(--muted);
 }
 .tab[aria-current="page"] { border-bottom-color: var(--accent); color: var(--accent); }
+@media (max-width: 370px) { .tab { padding-inline: 3px; font-size: 0.9rem; letter-spacing: 0; } }
 
 main { padding-block: 10px 120px; display: grid; gap: 8px; }
 .banner { background: var(--chip); color: var(--low); border-radius: 10px; padding: 10px 12px; font-weight: 600; }
@@ -196,7 +198,6 @@ main { padding-block: 10px 120px; display: grid; gap: 8px; }
 .burn small { display: block; }
 
 /* Produkty */
-.prodadd { display: grid; grid-template-columns: 1fr 1fr; }
 .addex { width: 100%; min-height: 48px; padding: 4px 8px; border: 1.5px dashed var(--line); border-radius: var(--radius); background: none; color: var(--accent); font-weight: 700; }
 .pcat { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); overflow: hidden; }
 .pcat h3 { font-size: 1.1rem; text-transform: uppercase; letter-spacing: 0.03em; }
@@ -321,6 +322,7 @@ dialog::backdrop { background: rgba(0, 0, 0, 0.5); }
 .pk-more { flex: none; border-top: 1px solid var(--line); padding: 2px 16px 0; }
 .pk-more button { border: 0; background: none; padding: 0; color: var(--accent); font-weight: 700; min-height: 44px; }
 .pk-more + .own { border-top: 0; }
+.fedu { display: grid; gap: 12px; }
 .ingbox { display: flex; align-items: center; justify-content: space-between; gap: 8px 12px; flex-wrap: wrap; font-size: 0.85rem; color: var(--muted); }
 .ingbox span:empty { display: none; }
 .fld input[readonly] { background: var(--chip); color: var(--muted); }
@@ -402,11 +404,13 @@ dialog::backdrop { background: rgba(0, 0, 0, 0.5); }
     <h2 id="fed-h" tabindex="-1" autofocus>Edytuj</h2>
     <label class="fld">Nazwa<input name="n" maxlength="80" autocomplete="off"></label>
     <label class="fld">Kategoria<select name="c"></select></label>
-    <div class="row2">
-      <label class="fld">Jednostka<input name="u" maxlength="30" autocomplete="off" placeholder="np. 1 szt., 100 g"></label>
-      <label class="fld">Waga jednostki (g)<input name="gw" inputmode="decimal" autocomplete="off" placeholder="opcjonalnie"></label>
+    <div class="fedu" id="fed-units">
+      <div class="row2">
+        <label class="fld">Jednostka<input name="u" maxlength="30" autocomplete="off" placeholder="np. 1 szt., 100 g"></label>
+        <label class="fld">Waga jednostki (g)<input name="gw" inputmode="decimal" autocomplete="off" placeholder="opcjonalnie"></label>
+      </div>
+      <label class="fld">Waga 1 sztuki (g) <input name="pcw" inputmode="decimal" autocomplete="off" placeholder="opcjonalnie — do liczenia w sztukach"></label>
     </div>
-    <label class="fld">Waga 1 sztuki (g) <input name="pcw" inputmode="decimal" autocomplete="off" placeholder="opcjonalnie — do liczenia w sztukach"></label>
     <p class="hint" id="fed-unit">Kalorie i makro poniżej — na 1 jednostkę.</p>
     <div class="row4">
       <label class="fld">kcal<input name="k" inputmode="decimal" autocomplete="off"></label>
@@ -465,7 +469,7 @@ dialog::backdrop { background: rgba(0, 0, 0, 0.5); }
 // [id, nazwa, krótka nazwa na przycisku w oknie „Dodaj”]
 const CATS = [
   ['rano', 'Rano'], ['sniad', 'Śniadania'], ['przek', 'Przekąski'], ['jog', 'Posiłek 14:00 (jogurt z owsem)', 'Jogurt 14:00'], ['obiad', 'Obiady'],
-  ['kol', 'Kolacje'], ['post', 'Dzień postu', 'Post'], ['dania', 'Dania'], ['surowki', 'Surówki i sałatki', 'Surówki'],
+  ['kol', 'Kolacje'], ['post', 'Dzień postu', 'Post'], ['posilki', 'Moje posiłki'], ['dania', 'Dania'], ['surowki', 'Surówki i sałatki', 'Surówki'],
   ['warzywa', 'Warzywa'], ['straczkowe', 'Strączkowe i tofu', 'Strączkowe'], ['owoce', 'Owoce'], ['orzechy', 'Orzechy i nasiona', 'Orzechy'],
   ['nabial', 'Nabiał, jajka, odżywka', 'Nabiał'], ['sery', 'Sery'], ['pieczywo', 'Pieczywo'],
   ['zboza', 'Kasze, ryż, makaron, płatki, ziemniaki', 'Kasze i ryż'], ['mieso', 'Mięso'], ['wedliny', 'Wędliny'],
@@ -1122,16 +1126,16 @@ for (const [id, x] of Object.entries(ING)) {
 
 // Posiłki dnia (kolejność na ekranie). c = kategoria, od której zaczyna się lista „Dodaj”
 const SLOTS = {
-  rano:   { t: '08:15', n: 'Rano', cs: ['rano', 'owoce', 'nabial', 'napoje'] },
-  sniad:  { t: '10:00', n: 'Śniadanie', cs: ['sniad', 'jog', 'dania', 'pieczywo', 'nabial', 'sery', 'wedliny', 'warzywa', 'ryby', 'tluszcze', 'dodatki', 'napoje', 'owoce', 'orzechy'] },
-  przek:  { t: '12:00', n: 'Przekąska', cs: ['przek', 'jog', 'owoce', 'orzechy', 'pieczywo', 'nabial', 'napoje', 'ciasta', 'cukierki', 'czekolada', 'slodkie'] },
-  jog:    { t: '14:00', n: 'Posiłek 14:00', cs: ['jog', 'nabial', 'zboza', 'owoce', 'orzechy'] },
-  post14: { t: '14:00', n: 'Przerwanie postu', cs: ['post', 'dania', 'mieso', 'ryby', 'zboza', 'warzywa'] },
-  obiad:  { t: '16:00', n: 'Obiad', cs: ['obiad', 'jog', 'mieso', 'ryby', 'surowki', 'zboza', 'warzywa', 'straczkowe', 'dania', 'tluszcze', 'dodatki', 'miasto'] },
-  kol:    { t: '19:00', n: 'Kolacja', cs: ['kol', 'jog', 'dania', 'pieczywo', 'nabial', 'sery', 'wedliny', 'ryby', 'warzywa', 'surowki', 'mieso', 'tluszcze', 'dodatki'] },
-  dod:    { t: '', n: 'Dodatkowo', cs: ['jog', 'ciasta', 'cukierki', 'czekolada', 'lody', 'slodkie', 'orzechy', 'owoce', 'napoje', 'miasto', 'dania', 'nabial'] },
+  rano:   { t: '08:15', n: 'Rano', cs: ['rano', 'posilki', 'owoce', 'nabial', 'napoje'] },
+  sniad:  { t: '10:00', n: 'Śniadanie', cs: ['sniad', 'posilki', 'jog', 'dania', 'pieczywo', 'nabial', 'sery', 'wedliny', 'warzywa', 'ryby', 'tluszcze', 'dodatki', 'napoje', 'owoce', 'orzechy'] },
+  przek:  { t: '12:00', n: 'Przekąska', cs: ['przek', 'posilki', 'jog', 'owoce', 'orzechy', 'pieczywo', 'nabial', 'napoje', 'ciasta', 'cukierki', 'czekolada', 'slodkie'] },
+  jog:    { t: '14:00', n: 'Posiłek 14:00', cs: ['jog', 'posilki', 'nabial', 'zboza', 'owoce', 'orzechy'] },
+  post14: { t: '14:00', n: 'Przerwanie postu', cs: ['post', 'posilki', 'dania', 'mieso', 'ryby', 'zboza', 'warzywa'] },
+  obiad:  { t: '16:00', n: 'Obiad', cs: ['obiad', 'posilki', 'jog', 'mieso', 'ryby', 'surowki', 'zboza', 'warzywa', 'straczkowe', 'dania', 'tluszcze', 'dodatki', 'miasto'] },
+  kol:    { t: '19:00', n: 'Kolacja', cs: ['kol', 'posilki', 'jog', 'dania', 'pieczywo', 'nabial', 'sery', 'wedliny', 'ryby', 'warzywa', 'surowki', 'mieso', 'tluszcze', 'dodatki'] },
+  dod:    { t: '', n: 'Dodatkowo', cs: ['jog', 'posilki', 'ciasta', 'cukierki', 'czekolada', 'lody', 'slodkie', 'orzechy', 'owoce', 'napoje', 'miasto', 'dania', 'nabial'] },
 };
-const CUSTOM_CS = ['jog', 'dania', 'kol', 'pieczywo', 'nabial', 'owoce', 'slodkie'];
+const CUSTOM_CS = ['posilki', 'jog', 'dania', 'kol', 'pieczywo', 'nabial', 'owoce', 'slodkie'];
 const SLOT_ORDER = Object.keys(SLOTS);
 // Rodzaj dnia: act = aktywność ponad „bez aktywności” (wydatek przewidywany = bez aktywności przy obecnej masie + act), plus = nadwyżka
 // (cel jedzenia = wydatek + nadwyżka), b / t = cel białka i tłuszczu w g (węglowodany = reszta kalorii), v = domyślna wersja kolacji, slots = posiłki z planu
@@ -1247,7 +1251,7 @@ const closeDlg = el => { if (el.close) el.close(); else el.removeAttribute('open
 // Każdy wpis pamięta kalorie z chwili dodania — późniejsza zmiana produktu nie przelicza minionych dni.
 const KEY = 'jedzenie-dziennik-v1';
 const normFoods = p => ({ edits: (p && p.edits) || {}, added: (p && p.added) || [], removed: (p && p.removed) || [] });
-const S = { days: {}, foods: normFoods(), settings: { targets: {} }, pq: '', popen: {}, view: 'dzien', date: todayISO(), follow: true, week: null, month: null, open: {}, toast: null, flashId: null, setOpen: false, banner: '' };
+const S = { days: {}, foods: normFoods(), settings: { targets: {} }, pq: {}, popen: {}, view: 'dzien', date: todayISO(), follow: true, week: null, month: null, open: {}, toast: null, flashId: null, setOpen: false, banner: '' };
 try {
   const raw = localStorage.getItem(KEY);
   if (raw) { const o = JSON.parse(raw); S.days = o.days || {}; S.foods = normFoods(o.foods); S.settings = o.settings || {}; }
@@ -1351,6 +1355,15 @@ function setType(date, type) {
   for (const e of template(type)) if (!d.items.some(x => x.s === e.s && x.f === e.f)) d.items.push({ ...e, id: newId() });
 }
 const findE = (d, id) => d.items.find(e => e.id === id);
+// Po zmianie produktu: niezjedzone pozycje planu (○, nieruszane) od dziś biorą nowe wartości; minione dni, pozycje odhaczone,
+// dodane ręcznie albo zmienione (ilość, wersja, składniki) zostają z wartościami z chwili dodania
+function refreshPlan() {
+  const today = todayISO();
+  for (const [date, d] of Object.entries(S.days)) {
+    if (date < today) continue;
+    for (const e of d.items) if (e.p && !e.ok && e.f && FM[e.f]) Object.assign(e, snap(FM[e.f], e.v));
+  }
+}
 // Najczęściej jedzone w danym posiłku (ostatnie 90 dni, wpis sprzed 2 tygodni waży połowę)
 function slotUsage(slot) {
   const sc = {}, today = todayISO();
@@ -1364,7 +1377,7 @@ function slotUsage(slot) {
 }
 
 /* ---------- Widok ---------- */
-const VIEWS = [['dzien', 'Dzień'], ['tydzien', 'Tydzień'], ['miesiac', 'Miesiąc'], ['produkty', 'Produkty']];
+const VIEWS = [['dzien', 'Dzień'], ['tydzien', 'Tydzień'], ['miesiac', 'Miesiąc'], ['posilki', 'Posiłki'], ['produkty', 'Produkty']];
 function currentView() { const h = location.hash.slice(1); return VIEWS.some(v => v[0] === h) ? h : 'dzien'; }
 function renderHeader() {
   const d = new Date();
@@ -1379,7 +1392,7 @@ function render(keepScroll) {
   let h = `<div class="banner" ${S.banner ? '' : 'hidden'}>${esc(S.banner)}</div>`;
   if (S.toast && S.toast.view === S.view) h += `<div class="toast" role="status"><span>${esc(S.toast.text)}</span><button type="button" data-act="undo">Cofnij</button></div>`;
   else S.toast = null;
-  h += S.view === 'tydzien' ? weekHTML() : S.view === 'miesiac' ? monthHTML() : S.view === 'produkty' ? prodHTML() : dayHTML();
+  h += S.view === 'tydzien' ? weekHTML() : S.view === 'miesiac' ? monthHTML() : S.view === 'produkty' || S.view === 'posilki' ? prodHTML(S.view) : dayHTML();
   $('#main').innerHTML = h;
   S.flashId = null;
   if (!keepScroll) window.scrollTo(0, 0);
@@ -1744,27 +1757,33 @@ function subHTML(f) {
 }
 const prow = f => `<button type="button" class="prow" data-fedit="${f.id}"><span class="pk-nm">${esc(f.n)}${S.foods.edits[f.id] ? '<i class="vr">zmienione</i>' : ''}${subHTML(f)}</span>` +
   `<span class="pk-k">${k0(f.k)}<small>${f.L ? 'LIGHT ' + k0(f.L.k) : g0(f.b) + ' B'}</small></span></button>`;
-function plistHTML() {
-  const q = norm((S.pq || '').trim());
+// Zakładka „Posiłki”: posiłki z planu, „Moje posiłki” i wszystko złożone ze składników; „Produkty”: reszta (produkty i gotowe dania)
+const MEAL_CATS = new Set(['rano', 'sniad', 'przek', 'jog', 'obiad', 'kol', 'post', 'posilki']);
+const isMeal = f => !!f.ing || MEAL_CATS.has(f.c);
+const inView = (f, kind) => isMeal(f) === (kind === 'posilki');
+function plistHTML(kind) {
+  const q = norm((S.pq[kind] || '').trim()), pool = FOODS.filter(f => inView(f, kind));
   if (q) {
-    const hits = FOODS.filter(matcher(q));
+    const hits = pool.filter(matcher(q));
     return hits.length ? `<section class="pcat found">${hits.map(prow).join('')}</section>` : `<p class="hint">Nic nie znaleziono.</p>`;
   }
   return CATS.map(([c]) => {
-    const list = FOODS.filter(f => f.c === c);
+    const list = pool.filter(f => f.c === c);
     return list.length ? `<details class="pcat" data-pc="${c}" ${S.popen[c] ? 'open' : ''}><summary><h3>${esc(CATM[c])}<span>${list.length}</span></h3></summary>${list.map(prow).join('')}</details>` : '';
   }).join('');
 }
-function prodHTML() {
-  let h = `<div class="btnrow prodadd"><button type="button" class="addex" data-act="fnew">+ Dodaj produkt</button><button type="button" class="addex" data-act="cm-newp">+ Złóż posiłek ze składników</button></div>` +
-    `<div class="psearch"><input id="pq" type="search" placeholder="Szukaj produktu…" autocomplete="off" value="${esc(S.pq || '')}" aria-label="Szukaj produktu"></div>` +
-    `<div class="plist" id="plist">${plistHTML()}</div>`;
-  const rm = S.foods.removed.map(id => S.foods.added.find(a => a.id === id) || (BASEM[id] && { ...BASEM[id], ...(S.foods.edits[id] || {}) })).filter(Boolean);
+function prodHTML(kind) {
+  const meal = kind === 'posilki', what = meal ? 'posiłku' : 'produktu';
+  let h = (meal ? `<button type="button" class="addex" data-act="cm-newp">+ Złóż posiłek ze składników</button>` : `<button type="button" class="addex" data-act="fnew">+ Dodaj produkt</button>`) +
+    `<div class="psearch"><input id="pq" data-kind="${kind}" type="search" placeholder="Szukaj ${what}…" autocomplete="off" value="${esc(S.pq[kind] || '')}" aria-label="Szukaj ${what}"></div>` +
+    `<div class="plist" id="plist">${plistHTML(kind)}</div>`;
+  const rm = S.foods.removed.map(id => S.foods.added.find(a => a.id === id) || (BASEM[id] && { ...BASEM[id], ...(S.foods.edits[id] || {}) })).filter(f => f && inView(f, kind));
   if (rm.length) {
     h += `<section class="settings"><div class="body"><p><b>Usunięte</b> — możesz je przywrócić:</p><div class="rmlist">` +
       rm.map(f => `<div><span>${esc(f.n)}</span><button type="button" class="btn2" data-frestore="${f.id}">Przywróć</button></div>`).join('') + `</div></div></section>`;
   }
-  return h + `<p class="hint">Zmiana kalorii produktu nie przelicza minionych dni — każdy wpis pamięta wartości z chwili dodania.</p>`;
+  return h + `<p class="hint">Zmiana działa od teraz: na nowe wpisy i niezjedzone pozycje planu od dziś. Minione dni i to, co już dodane albo odhaczone, zostają bez zmian.` +
+    (meal ? ' Zmiana produktu nie zmienia posiłków, w których jest składnikiem.' : '') + `</p>`;
 }
 
 const learnTxt = () => {
@@ -1959,6 +1978,7 @@ function fedIngSync() {
   for (const x of MAC) { FF(x).readOnly = on; FF('L' + x).readOnly = Lon; }
   if (on) { const v = ingVal(FE.ing, FE.por, FE.rest); for (const x of MAC) FF(x).value = d1(v[x]); }
   if (Lon) { const v = ingVal(FE.Ling, FE.por, FE.Lrest); for (const x of MAC) FF('L' + x).value = d1(v[x]); }
+  $('#fed-units').hidden = on && !FF('u').value && !FF('gw').value && !FF('pcw').value;
   $('#fed-unit').textContent = on ? 'Kalorie i makro — na 1 porcję, liczone ze składników.' : 'Kalorie i makro poniżej — na 1 jednostkę.';
   $('#fed-ingtxt').textContent = on ? `Składniki: ${FE.ing.length}${FE.por > 1 ? ` · całość na ${d1(FE.por)} porc.` : ''}` : '';
   $('[data-act="fed-ing"]', fform).textContent = on ? 'Zmień składniki' : 'Złóż ze składników';
@@ -1969,7 +1989,7 @@ function fedIngSync() {
 function openFood(id) {
   FE.id = id;
   fillFood(id ? FM[id] : { n: '', c: 'moje', d: '' });
-  $('#fed-h').textContent = id ? 'Edytuj' : 'Nowy produkt';
+  $('#fed-h').textContent = id ? (isMeal(FM[id]) ? 'Posiłek' : 'Produkt') : 'Nowy produkt';
   $('#fed-err').textContent = '';
   const del = $('[data-act="fed-del"]', fform);
   del.hidden = !id; delete del.dataset.armed; del.classList.remove('armed'); del.textContent = 'Usuń';
@@ -2025,13 +2045,13 @@ function saveFood() {
     for (const k of ['L', 'g', 'u', 'r', 'pc', 'ing', 'por']) if (!f[k]) delete f[k];
     S.foods.added.push(f);
   }
-  buildFoods(); persist(); closeDlg($('#fed')); render(true);
+  buildFoods(); refreshPlan(); persist(); closeDlg($('#fed')); render(true);
 }
 function removeFood(id) {
   const f = FM[id];
   if (!S.foods.removed.includes(id)) S.foods.removed.push(id);
   buildFoods(); persist(); closeDlg($('#fed'));
-  S.toast = { view: 'produkty', text: `Usunięto „${f ? f.n : ''}”.`, undo: () => restoreFood(id) };
+  S.toast = { view: S.view, text: `Usunięto „${f ? f.n : ''}”.`, undo: () => restoreFood(id) };
   render(true);
 }
 function restoreFood(id) { S.foods.removed = S.foods.removed.filter(x => x !== id); buildFoods(); persist(); render(true); }
@@ -2052,7 +2072,7 @@ function openCmp(o) {
   $('#cm-h').textContent = CM.title;
   $('#cm-meta').hidden = CM.mode === 'entry' || CM.which === 'L';
   $('#cm-nbox').hidden = $('#cm-cbox').hidden = !nw;
-  $('#cm-n').value = ''; $('#cm-c').value = 'moje'; $('#cm-por').value = d1(CM.por);
+  $('#cm-n').value = ''; $('#cm-c').value = 'posilki'; $('#cm-por').value = d1(CM.por);
   const box = CM.mode === 'entry' ? (CM.f ? `Zapamiętaj też w produkcie${CM.v === 'L' ? ' (wersja LIGHT)' : ''} — na kolejne dni` : '') : nw && CM.pick ? 'Zapamiętaj na liście produktów' : '';
   $('#cm-savebox').hidden = !box; $('#cm-savelbl').textContent = box; $('#cm-save').checked = nw && CM.pick;
   $('#cm-q').value = ''; $('#cm-hits').innerHTML = ''; $('#cm-err').textContent = '';
@@ -2121,7 +2141,7 @@ function ingToFood(f, v, rows, por) {
     const a = S.foods.added.find(x => x.id === id);
     if (a) { Object.assign(a, ch); if (!(a.por > 1)) delete a.por; }
   }
-  buildFoods();
+  buildFoods(); refreshPlan();
 }
 // Powrót do edytora produktu: lista i opis (opis podmieniany, jeśli był pusty, z planu albo wygenerowany)
 function cmBack() {
@@ -2169,7 +2189,7 @@ function cmOk() {
   if (keep && !n) { err('Wpisz nazwę.'); $('#cm-n').focus(); return; }
   let f = null;
   if (keep) {
-    f = { id: 'U' + Date.now().toString(36), c: $('#cm-c').value || 'moje', n, ...v, d: ingDesc(R, por), ing: R };
+    f = { id: 'U' + Date.now().toString(36), c: $('#cm-c').value || 'posilki', n, ...v, d: ingDesc(R, por), ing: R };
     if (por > 1) f.por = por;
     S.foods.added.push(f);
     buildFoods();
@@ -2437,7 +2457,7 @@ document.addEventListener('input', ev => {
   const t = ev.target;
   if (t.id === 'pk-q') { pickList(); $('#pk-list').scrollTop = 0; return; }
   if (t.id === 'cm-q') { cmHits(); $('#cm-list').scrollTop = 0; return; }
-  if (t.id === 'pq') { S.pq = t.value; $('#plist').innerHTML = plistHTML(); return; }
+  if (t.id === 'pq') { S.pq[t.dataset.kind] = t.value; $('#plist').innerHTML = plistHTML(t.dataset.kind); return; }
   if (t.dataset && t.dataset.tg) {
     const f = t.dataset.f, v = parseInt(t.value.replace(/[−–]/, '-').replace('+', '').trim(), 10);
     if (!(f === 'plus' ? v >= -2000 && v <= 1500 : f === 'act' ? v >= 800 && v <= 9000 : v > 0 && v < 1000)) return;
@@ -2482,8 +2502,8 @@ document.addEventListener('visibilitychange', () => { if (!document.hidden && S.
 // v10: wydatek z ustawień (burn) zamieniony na aktywność ponad „bez aktywności” (act = burn − 2015)
 function migrate() {
   const mv = S.settings.mv || 0;
-  if (mv >= 11) return;
-  const had = Object.keys(S.days).length || Object.keys(S.settings.targets).length || S.foods.removed.length; // świeża instalacja — nic nie zapisuj
+  if (mv >= 12) return;
+  const had = Object.keys(S.days).length || Object.keys(S.settings.targets).length || S.foods.removed.length || S.foods.added.length; // świeża instalacja — nic nie zapisuj
   for (const k of Object.keys(S.settings.targets)) {
     const o = S.settings.targets[k] || {};
     if (mv < 9) delete o.kcal;
@@ -2497,7 +2517,12 @@ function migrate() {
     if (S.foods.removed.includes('JG1')) { S.foods.removed = S.foods.removed.filter(id => id !== 'JG1'); buildFoods(); }
     for (const [date, d] of Object.entries(S.days)) if (date >= today) d.items = d.items.filter(e => !(e.f === 'JG1' && e.p && !e.ok));
   }
-  S.settings.mv = 11;
+  if (mv < 12) { // posiłki złożone ze składników (v19) z „Moje” do „Moje posiłki”
+    let n = 0;
+    for (const f of S.foods.added) if (f.ing && f.c === 'moje') { f.c = 'posilki'; n++; }
+    if (n) buildFoods();
+  }
+  S.settings.mv = 12;
   if (had) persist();
 }
 migrate();
