@@ -196,7 +196,8 @@ main { padding-block: 10px 120px; display: grid; gap: 8px; }
 .burn small { display: block; }
 
 /* Produkty */
-.addex { width: 100%; min-height: 48px; border: 1.5px dashed var(--line); border-radius: var(--radius); background: none; color: var(--accent); font-weight: 700; }
+.prodadd { display: grid; grid-template-columns: 1fr 1fr; }
+.addex { width: 100%; min-height: 48px; padding: 4px 8px; border: 1.5px dashed var(--line); border-radius: var(--radius); background: none; color: var(--accent); font-weight: 700; }
 .pcat { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); overflow: hidden; }
 .pcat h3 { font-size: 1.1rem; text-transform: uppercase; letter-spacing: 0.03em; }
 .pcat summary { list-style: none; cursor: pointer; display: flex; align-items: center; min-height: 48px; padding: 0 12px; }
@@ -297,7 +298,7 @@ dialog::backdrop { background: rgba(0, 0, 0, 0.5); }
   background-repeat: no-repeat; background-position: right 10px center;
 }
 .fld textarea { resize: vertical; line-height: 1.4; }
-.fld input:focus, .fld select:focus, .fld textarea:focus, .pk-search input:focus, .tg input:focus { outline: 2px solid var(--accent); outline-offset: 0; }
+.fld input:focus, .fld select:focus, .fld textarea:focus, .pk-search input:focus, .tg input:focus, .cm-r input:focus { outline: 2px solid var(--accent); outline-offset: 0; }
 .row2 { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
 .ed .hint { margin-top: -4px; }
 .row4 { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; }
@@ -315,6 +316,33 @@ dialog::backdrop { background: rgba(0, 0, 0, 0.5); }
 .save { height: 44px; border: 0; border-radius: 10px; padding: 0 16px; background: var(--accent); color: var(--accent-ink); font-weight: 700; }
 .btn-del { border: 1px solid var(--low); background: none; color: var(--low); border-radius: 10px; padding: 0 12px; height: 44px; font-weight: 600; }
 .btn-del.armed { background: var(--low); color: var(--surface); }
+
+/* Składniki: okno składania posiłku i zmiany składników */
+.pk-more { flex: none; border-top: 1px solid var(--line); padding: 2px 16px 0; }
+.pk-more button { border: 0; background: none; padding: 0; color: var(--accent); font-weight: 700; min-height: 44px; }
+.pk-more + .own { border-top: 0; }
+.ingbox { display: flex; align-items: center; justify-content: space-between; gap: 8px 12px; flex-wrap: wrap; font-size: 0.85rem; color: var(--muted); }
+.ingbox span:empty { display: none; }
+.fld input[readonly] { background: var(--chip); color: var(--muted); }
+.cm-meta { flex: none; display: grid; gap: 8px; padding: 0 16px 8px; }
+#cm-list { position: relative; flex: 1; overflow: auto; padding: 0 16px 8px; -webkit-overflow-scrolling: touch; overscroll-behavior: contain; }
+#cm-hits:not(:empty) { border-bottom: 2px solid var(--accent-soft); margin-bottom: 4px; }
+.cm-r { border-top: 1px solid var(--line); padding: 8px 0; display: grid; gap: 6px; }
+#cm-rows > :first-child { border-top: 0; }
+.cm-r.new { animation: flash 1.6s ease-out; }
+@media (prefers-reduced-motion: reduce) { .cm-r.new { animation: none; } }
+.cm-t { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; }
+.cm-nm { min-width: 0; font-weight: 600; line-height: 1.3; }
+.cm-k { flex: none; font-size: 0.85rem; color: var(--muted); text-align: right; font-variant-numeric: tabular-nums; }
+.cm-k b { color: var(--ink); }
+.cm-r .x { margin-left: auto; }
+.cm-rest { border-top: 1px solid var(--line); padding: 8px 0; display: flex; justify-content: space-between; align-items: baseline; gap: 10px; font-size: 0.88rem; color: var(--muted); }
+.cm-rest small { display: block; font-size: 0.78rem; }
+.cm-foot { flex: none; display: grid; gap: 6px; padding: 10px 16px 14px; border-top: 1px solid var(--line); background: var(--surface); }
+.cm-sum { margin: 0; font-size: 0.9rem; color: var(--muted); font-variant-numeric: tabular-nums; line-height: 1.4; }
+.cm-sum b { color: var(--ink); font-size: 1.05rem; }
+.cm-foot .chkl { min-height: 36px; font-size: 0.92rem; }
+.cm-btns { display: flex; justify-content: flex-end; gap: 8px; }
 </style>
 </head>
 <body>
@@ -335,6 +363,7 @@ dialog::backdrop { background: rgba(0, 0, 0, 0.5); }
     <div class="pk-last"><span id="pk-last" aria-live="polite"></span><button type="button" class="btn2 sm" data-act="pk-undo">Usuń</button><button type="button" class="save" data-act="pk-close">Gotowe</button></div>
     <div class="qchips" id="pk-chips" role="group" aria-label="Ilość ostatnio dodanego"></div>
   </div>
+  <div class="pk-more"><button type="button" data-act="cm-pick">+ Złóż ze składników</button></div>
   <details class="own" id="pk-own">
     <summary>+ Własna pozycja</summary>
     <form class="body" id="own-form" novalidate>
@@ -378,13 +407,14 @@ dialog::backdrop { background: rgba(0, 0, 0, 0.5); }
       <label class="fld">Waga jednostki (g)<input name="gw" inputmode="decimal" autocomplete="off" placeholder="opcjonalnie"></label>
     </div>
     <label class="fld">Waga 1 sztuki (g) <input name="pcw" inputmode="decimal" autocomplete="off" placeholder="opcjonalnie — do liczenia w sztukach"></label>
-    <p class="hint">Kalorie i makro poniżej — na 1 jednostkę.</p>
+    <p class="hint" id="fed-unit">Kalorie i makro poniżej — na 1 jednostkę.</p>
     <div class="row4">
       <label class="fld">kcal<input name="k" inputmode="decimal" autocomplete="off"></label>
       <label class="fld">B (g)<input name="b" inputmode="decimal" autocomplete="off"></label>
       <label class="fld">T (g)<input name="t" inputmode="decimal" autocomplete="off"></label>
       <label class="fld">W (g)<input name="w" inputmode="decimal" autocomplete="off"></label>
     </div>
+    <div class="ingbox"><span id="fed-ingtxt"></span><span class="btnrow"><button type="button" class="btn2 sm" data-act="fed-noing">Wpisz ręcznie</button><button type="button" class="btn2 sm" data-act="fed-ing">Złóż ze składników</button></span></div>
     <label class="fld">Skład / opis<textarea name="d" rows="3" maxlength="600"></textarea></label>
     <label class="fld"><span>Przepis <small>· każdy krok w nowej linii</small></span><textarea name="r" rows="5" maxlength="2000"></textarea></label>
     <label class="chkl"><input type="checkbox" name="hasL"> Ma wersję LIGHT</label>
@@ -395,6 +425,7 @@ dialog::backdrop { background: rgba(0, 0, 0, 0.5); }
         <label class="fld">T (g)<input name="Lt" inputmode="decimal" autocomplete="off"></label>
         <label class="fld">W (g)<input name="Lw" inputmode="decimal" autocomplete="off"></label>
       </div>
+      <div class="ingbox"><span id="fed-Lingtxt"></span><span class="btnrow"><button type="button" class="btn2 sm" data-act="fed-noLing">Wpisz ręcznie</button><button type="button" class="btn2 sm" data-act="fed-Ling">Złóż ze składników</button></span></div>
       <label class="fld">Co inaczej w LIGHT<textarea name="Ld" rows="2" maxlength="300"></textarea></label>
     </div>
     <p class="msg err" id="fed-err" aria-live="polite"></p>
@@ -406,6 +437,21 @@ dialog::backdrop { background: rgba(0, 0, 0, 0.5); }
       <button type="submit" class="save">Zapisz</button>
     </div>
   </form>
+</dialog>
+<dialog class="sheet" id="cmp" aria-labelledby="cm-h">
+  <div class="sh-head"><h2 id="cm-h" tabindex="-1" autofocus>Składniki</h2><button type="button" class="xbtn" data-act="cm-close" aria-label="Zamknij">✕</button></div>
+  <div class="cm-meta" id="cm-meta">
+    <label class="fld" id="cm-nbox">Nazwa<input id="cm-n" maxlength="80" autocomplete="off"></label>
+    <div class="row2"><label class="fld" id="cm-cbox">Kategoria<select id="cm-c"></select></label><label class="fld">Liczba porcji<input id="cm-por" inputmode="decimal" autocomplete="off"></label></div>
+  </div>
+  <div class="pk-search"><input id="cm-q" type="search" placeholder="Dodaj składnik — szukaj…" autocomplete="off" aria-label="Szukaj składnika"></div>
+  <div id="cm-list"><div id="cm-hits"></div><div id="cm-rows"></div></div>
+  <div class="cm-foot">
+    <p class="cm-sum" id="cm-sum" aria-live="polite"></p>
+    <label class="chkl" id="cm-savebox"><input type="checkbox" id="cm-save"> <span id="cm-savelbl"></span></label>
+    <p class="msg err" id="cm-err" aria-live="polite"></p>
+    <div class="cm-btns"><button type="button" class="btn2" data-act="cm-close">Anuluj</button><button type="button" class="save" data-act="cm-ok">Zapisz</button></div>
+  </div>
 </dialog>
 <input type="file" id="import-file" accept="application/json,.json" hidden>
 
@@ -928,6 +974,13 @@ const BASE_FOODS = [
   { id: 'RY3', c: 'ryby', n: "Tatar z łososia", u: "1 porcja", k: 295, b: 24.5, t: 21.5, w: 2.5, d: "120 g surowego łososia, szalotka, kapary, ogórek, 1 łyżeczka oliwy, cytryna" },
   { id: 'RY4', c: 'ryby', n: "Tatar z tuńczyka", u: "1 porcja", k: 250, b: 31, t: 11.5, w: 5, d: "120 g świeżego tuńczyka, 40 g awokado, sos sojowy, olej sezamowy, szalotka" },
   { id: 'RY5', c: 'ryby', n: "Tatar ze śledzia", u: "1 porcja", k: 230, b: 13.5, t: 18, w: 4, d: "80 g śledzia, cebula, ogórek kiszony, jabłko, 1 łyżeczka oleju" },
+  // Składniki posiłków z planu, których nie było na liście
+  { id: 'SK1', c: 'nabial', n: "Kolagen", u: "5 g", g: 5, k: 18, b: 4.5, t: 0, w: 0, d: "" },
+  { id: 'SK2', c: 'nabial', n: "Kreatyna", u: "5 g", g: 5, k: 0, b: 0, t: 0, w: 0, d: "" },
+  { id: 'SK3', c: 'dodatki', n: "Kakao", u: "1 łyżka", g: 10, k: 35, b: 2.1, t: 1.1, w: 1.2, d: "" },
+  { id: 'SK4', c: 'zboza', n: "Mąka owsiana", u: "100 g", g: 100, k: 370, b: 13, t: 7, w: 60, d: "lub zmielone płatki owsiane" },
+  { id: 'SK5', c: 'dodatki', n: "Błonnik aroniowy", u: "4 g", g: 4, k: 8, b: 0.3, t: 0.1, w: 0.7, d: "" },
+  { id: 'SK6', c: 'dodatki', n: "Babka płesznik", u: "3 g", g: 3, k: 6, b: 0.1, t: 0, w: 0.2, d: "" },
 ];
 // Przepisy — kroki (r), pokazywane po rozwinięciu pozycji
 const RECIPES = {
@@ -992,6 +1045,80 @@ const RECIPES = {
 };
 for (const f of BASE_FOODS) if (RECIPES[f.id]) f.r = RECIPES[f.id].join('\n');
 const BASEM = Object.fromEntries(BASE_FOODS.map(f => [f.id, f]));
+// Składniki posiłków z planu: [produkt, gramy (produkt bez wagi jednostki — liczba jednostek)]; L = co inaczej w LIGHT (gramy, 0 = bez);
+// por = na ile porcji jest lista. Wartości z planu zostają: różnica między planem a sumą składników (przyprawy, warzywa „na oko”,
+// zaokrąglenia) to „rest” — zmiana składnika dolicza albo odejmuje tylko swoją różnicę.
+const ING = {
+  S1: { p: [['P11', 20], ['SK1', 5], ['SK2', 5], ['P1', 120]] },
+  S2: { p: [['P11', 20], ['SK1', 5], ['SK2', 5]] },
+  SN1: { p: [['P4', 50], ['P6', 30], ['A1', 40], ['T6', 10], ['W1', 120], ['W3', 80], ['W7', 40], ['P3', 1]] },
+  SN2: { p: [['P4', 50], ['P5', 80], ['N2', 100], ['W1', 120], ['W3', 80], ['P12', 5]] },
+  SN3: { p: [['P4', 50], ['P5', 80], ['M9', 60], ['W1', 120], ['W3', 80], ['P12', 5]] },
+  PR1: { p: [['P6', 20], ['P7', 20], ['P2', 180], ['P3', 1]] },
+  JG1: { p: [['P10', 200], ['Z5', 40], ['O6', 100], ['P13', 15], ['T8', 7], ['T9', 7], ['SK5', 4], ['SK6', 3]] },
+  JG2: { p: [['P10', 200], ['Z5', 40], ['P13', 15], ['T8', 7], ['T9', 7], ['SK5', 4], ['SK6', 3]] },
+  OB1: { p: [['M1', 120], ['P9', 400], ['W15', 200], ['P12', 15]] },
+  OB2: { p: [['M1', 120], ['P9', 550], ['W15', 200], ['P12', 15]] },
+  OB3: { p: [['M8', 120], ['P9', 400], ['W15', 200], ['P12', 5]] },
+  K1: { p: [['P5', 120], ['M48', 70], ['N10', 25], ['W1', 100], ['W12', 20], ['W9', 20], ['P12', 10]], L: { P12: 0, N10: 0, M48: 100, A1: 20 } },
+  K2: { p: [['P4', 150], ['N10', 20], ['W13', 50], ['W1', 100], ['P5', 100], ['P12', 7]], L: { P4: 100, N1: 66, N10: 10, P12: 3 } },
+  K3: { p: [['Z4', 70], ['M1', 90], ['N10', 20], ['P8', 30], ['W6', 100], ['P10', 50], ['P12', 10]], L: { P12: 0, N10: 0, M1: 110 } },
+  K4: { p: [['P4', 50], ['P11', 15], ['SK4', 50], ['Z13', 50], ['N7', 150], ['P12', 10], ['P10', 50], ['O6', 100]], L: { SK4: 40, Z13: 40, P12: 3 } },
+  K4N: { p: [['P4', 50], ['P11', 15], ['SK4', 50], ['Z13', 50], ['N7', 150], ['P12', 10]], L: { SK4: 40, Z13: 40, P12: 3 } },
+  K4T: { p: [['P4', 50], ['Z13', 100], ['N7', 150], ['P12', 10], ['A9', 5]], L: { Z13: 80, P12: 3 } },
+  K5: { p: [['P4', 100], ['P11', 15], ['SK4', 40], ['Z13', 30], ['N7', 120], ['P12', 10], ['P2', 100], ['O7', 50]], L: { P4: 50, N1: 33, P12: 3 } },
+  K5N: { p: [['P4', 100], ['P11', 15], ['SK4', 40], ['Z13', 30], ['N7', 120], ['P12', 10]], L: { P4: 50, N1: 33, P12: 3 } },
+  K5T: { p: [['P4', 100], ['Z13', 70], ['N7', 120], ['T1', 10], ['A9', 5]], L: { P4: 50, N1: 33, T1: 3 } },
+  K6: { p: [['P4', 50], ['P11', 10], ['N2', 70], ['SK4', 60], ['P1', 100], ['SK3', 10], ['P7', 15], ['O6', 100]], L: { N2: 0, N3: 80, P7: 0 } },
+  K7: { p: [['P4', 50], ['P11', 15], ['SK4', 35], ['Z13', 35], ['N7', 100], ['P12', 7], ['P10', 80], ['O7', 100], ['P7', 10]], L: { P12: 2, P7: 0 } },
+  K7N: { p: [['P4', 50], ['P11', 15], ['SK4', 35], ['Z13', 35], ['N7', 100], ['P12', 7]], L: { P12: 2 } },
+  K7T: { p: [['P4', 50], ['Z13', 70], ['N7', 100], ['P12', 7], ['A9', 5]], L: { P12: 2 } },
+  K8: { p: [['P5', 120], ['M12', 60], ['N2', 50], ['P10', 30], ['W1', 100], ['W3', 80], ['P12', 5]], L: { M12: 40, N2: 0, N3: 80, P12: 0 } },
+  K9: { p: [['P12', 10], ['W9', 50], ['W6', 75], ['W25', 200], ['W22', 100], ['P4', 150], ['P5', 80]], L: { P4: 100, N1: 66, P12: 3 } },
+  K10: { p: [['N2', 120], ['P10', 50], ['P4', 50], ['P5', 120], ['W1', 100], ['W3', 80], ['P12', 5]], L: { N2: 0, N3: 120, P12: 0 } },
+  K11: { p: [['M13', 100], ['P9', 250], ['W16', 100], ['P4', 50], ['W1', 100], ['W9', 30], ['P12', 15]], L: { P12: 5, P10: 30 } },
+  K12: { p: [['N2', 125], ['P4', 25], ['SK4', 30], ['Z13', 20], ['P10', 80], ['O6', 150], ['P7', 10], ['A2', 10]], L: { P7: 0, A2: 0 } },
+  K13: { p: [['P8', 70], ['M1', 70], ['W15', 150], ['P12', 10], ['P4', 100], ['A7', 15]], L: { P4: 50, N1: 33, M1: 90, P12: 4 } },
+  K14: { p: [['Z7', 70], ['P12', 10], ['W9', 50], ['M3', 90], ['W10', 50], ['W25', 200], ['N13', 10]], L: { P12: 3.3, N13: 0 } },
+  K15: { p: [['P4', 50], ['P11', 15], ['Z5', 50], ['SK3', 10], ['P1', 80], ['N7', 60], ['P7', 15], ['P10', 100], ['O7', 100]], L: { P7: 0 } },
+  K16: { p: [['W19', 150], ['P4', 50], ['P11', 20], ['SK3', 15], ['T3', 30], ['SL1', 20], ['A2', 15]], L: { SL1: 0 } },
+  K16M: { p: [['W19', 150], ['P4', 50], ['P11', 20], ['SK3', 15], ['Z13', 40], ['T2', 10], ['SL1', 20], ['A2', 15]], L: { SL1: 0, T2: 3 } },
+  K17: { p: [['P1', 180], ['P4', 50], ['N1', 33], ['P11', 20], ['SK3', 15], ['P7', 20], ['SL1', 20]], L: { SL1: 0 } },
+  K17M: { p: [['P1', 150], ['P4', 50], ['P11', 20], ['SK3', 15], ['Z13', 40], ['P7', 15], ['SL1', 20]], L: { SL1: 0, P7: 5 } },
+  PO1: { p: [['P11', 20], ['P1', 120], ['M1', 120], ['P8', 100], ['W15', 200], ['P12', 10]] },
+  PO2: { p: [['P10', 200], ['Z5', 50], ['O6', 150], ['P13', 15], ['T8', 7], ['T9', 7], ['P7', 10]] },
+  D1: { p: [['O6', 400], ['P10', 400], ['N7', 100], ['P11', 30], ['P1', 120], ['P7', 20]], por: 4 },
+  D2: { p: [['O6', 150], ['P10', 100], ['P11', 10]] },
+};
+const MAC = ['k', 'b', 't', 'w'];
+const r1 = x => Math.round(x * 10) / 10;
+const R3 = x => Math.round(x * 1000) / 1000;
+const ingRow = (f, a) => ({ ...snap(f), q: R3(f.g ? a / f.g : a) });
+function ingSum(rows) {
+  const s = { k: 0, b: 0, t: 0, w: 0 };
+  for (const r of rows || []) for (const m of MAC) s[m] += (r[m] || 0) * (r.q || 1);
+  return s;
+}
+// Wartości na porcję: suma składników / liczba porcji + wyrównanie do planu
+function ingVal(rows, por, rest) {
+  const s = ingSum(rows), p = por || 1;
+  return Object.fromEntries(MAC.map(m => [m, Math.max(0, r1(s[m] / p + ((rest && rest[m]) || 0)))]));
+}
+const restOf = (x, rows, por) => { const s = ingSum(rows); return Object.fromEntries(MAC.map(m => [m, R3(x[m] - s[m] / (por || 1))])); };
+for (const [id, x] of Object.entries(ING)) {
+  const f = BASEM[id];
+  if (!f) continue;
+  f.ing = x.p.map(([i, a]) => ingRow(BASEM[i], a));
+  if (x.por) f.por = x.por;
+  f.rest = restOf(f, f.ing, x.por);
+  if (x.L && f.L) {
+    const L = x.L, rows = [];
+    for (const [i, a] of x.p) { const v = i in L ? L[i] : a; if (v > 0) rows.push(ingRow(BASEM[i], v)); }
+    for (const [i, a] of Object.entries(L)) if (a > 0 && !x.p.some(r => r[0] === i)) rows.push(ingRow(BASEM[i], a));
+    f.L.ing = rows;
+    f.L.rest = restOf(f.L, rows, x.por);
+  }
+}
 
 // Posiłki dnia (kolejność na ekranie). c = kategoria, od której zaczyna się lista „Dodaj”
 const SLOTS = {
@@ -1089,6 +1216,28 @@ function matcher(q) {
   return f => { const h = norm(f.n + ' ' + (f.d || '')); return ws.every(w => h.includes(w)); };
 }
 const macroTxt = x => `${k0(x.k)} kcal · ${g0(x.b)} B · ${g0(x.t)} T · ${g0(x.w)} W`;
+// Składniki: wiersz = migawka produktu (jak wpis dnia) + q; opis — sztuki dla „1 szt.” (¼, ½, 3), inaczej gramy / ml
+const verOf = (f, v) => f && f.L && v === 'L' ? f.L : f;
+const ingKey = rows => JSON.stringify((rows || []).map(r => [r.f || r.n, r.q]));
+function ingQty(r) {
+  const q = r.q || 1;
+  if (r.g) {
+    const x = q * r.g, gr = `${x < 10 ? d1(x) : g0(x)} ${sfx(r.u)}`;
+    return /^1\s*szt/.test(r.u || '') && Math.abs(q * 4 - Math.round(q * 4)) < 1e-6 ? `${frac(q)} szt. (${gr})` : gr;
+  }
+  if (r.u) return Math.abs(q - 1) < 1e-9 ? r.u : `${frac(q)} × ${r.u}`;
+  return Math.abs(q - 1) < 1e-9 ? '1 porcja' : `${frac(q)} porcji`;
+}
+const ingTxt = rows => rows.map(r => `${r.n} ${ingQty(r)}`).join(', ');
+const ingDesc = (rows, por) => (por > 1 ? `Na ${d1(por)} porc.: ` : '') + ingTxt(rows);
+// Co inaczej w b względem a (opis wersji LIGHT)
+function ingDiff(a, b) {
+  const A = new Map((a || []).map(r => [r.f || r.n, r])), B = new Set(b.map(r => r.f || r.n)), out = [];
+  for (const r of b) { const o = A.get(r.f || r.n); if (!o) out.push(`+ ${r.n} ${ingQty(r)}`); else if (Math.abs(o.q - r.q) > 1e-6) out.push(`${r.n} ${ingQty(r)}`); }
+  const gone = (a || []).filter(r => !B.has(r.f || r.n)).map(r => r.n);
+  if (gone.length) out.push('bez: ' + gone.join(', '));
+  return out.join(', ');
+}
 const newId = () => 'e' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
 const showDlg = el => { if (el.open) return; if (el.showModal) el.showModal(); else el.setAttribute('open', ''); };
 const closeDlg = el => { if (el.close) el.close(); else el.removeAttribute('open'); };
@@ -1124,9 +1273,17 @@ try { if (navigator.storage && navigator.storage.persist) navigator.storage.pers
 let FOODS = [], FM = {};
 function buildFoods() {
   const rm = new Set(S.foods.removed);
-  FOODS = BASE_FOODS.filter(f => !rm.has(f.id)).map(f => ({ ...f, ...(S.foods.edits[f.id] || {}) }))
+  FOODS = BASE_FOODS.filter(f => !rm.has(f.id)).map(f => {
+    const e = S.foods.edits[f.id] || {}, o = { ...f, ...e };
+    if (!('ing' in e) && MAC.some(m => m in e)) delete o.ing; // kalorie wpisane ręcznie (sprzed składników) — bez listy składników
+    return o;
+  })
     .concat(S.foods.added.filter(f => !rm.has(f.id)).map(f => ({ ...f })))
-    .map(f => { if (!f.L) delete f.L; if (!f.g) delete f.g; if (!f.pc) delete f.pc; if (!f.u) delete f.u; if (!f.r) delete f.r; if (!CATM[f.c]) f.c = 'moje'; return f; });
+    .map(f => {
+      if (!f.L) delete f.L; if (!f.g) delete f.g; if (!f.pc) delete f.pc; if (!f.u) delete f.u; if (!f.r) delete f.r; if (!CATM[f.c]) f.c = 'moje';
+      if (!f.ing || !f.ing.length) { delete f.ing; delete f.por; }
+      return f;
+    });
   FM = Object.fromEntries(FOODS.map(f => [f.id, f]));
 }
 buildFoods();
@@ -1469,12 +1626,13 @@ function compHTML(f, v) {
   return f.d || ld ? `<span class="sd">${esc(f.d || '')}${ld ? `${f.d ? '<br>' : ''}<b>LIGHT:</b> ${esc(ld)}` : ''}</span>` : '';
 }
 function itemHTML(e) {
-  const f = e.f ? FM[e.f] : null, open = !!S.open[e.id], q = e.q || 1;
+  const f = e.f ? FM[e.f] : null, open = !!S.open[e.id], q = e.q || 1, vf = verOf(f, e.v);
   let h = `<div class="it${e.ok ? ' ok' : ''}${e.id === S.flashId ? ' new' : ''}">` +
     `<button type="button" class="chk" data-chk="${e.id}" aria-pressed="${e.ok}" aria-label="${e.ok ? 'Zjedzone' : 'Odhacz jako zjedzone'}: ${esc(e.n)}"><span>✓</span></button>` +
     `<button type="button" class="it-main" data-open="${e.id}" aria-expanded="${open}"><span class="it-txt"><span class="nm">${esc(e.n)}` +
-    (e.v ? `<i class="vr ${e.v}">${e.v === 'L' ? 'LIGHT' : 'PEŁNA'}</i>` : '') + (qtyChip(e) ? `<i class="vr">${esc(qtyChip(e))}</i>` : '') + `</span>` +
-    compHTML(f, e.v) + `</span>` +
+    (e.v ? `<i class="vr ${e.v}">${e.v === 'L' ? 'LIGHT' : 'PEŁNA'}</i>` : '') + (e.f && e.ing ? '<i class="vr">zmienione</i>' : '') +
+    (qtyChip(e) ? `<i class="vr">${esc(qtyChip(e))}</i>` : '') + `</span>` +
+    (e.ing ? `<span class="sd">${esc(ingDesc(e.ing, e.por))}</span>` : compHTML(f, e.v)) + `</span>` +
     `<span class="mc"><b>${k0(e.k * q)}</b> kcal<br>${g0(e.b * q)} B</span></button>` +
     (e.ok ? '' : `<button type="button" class="x" data-rm="${e.id}" aria-label="Usuń z dnia: ${esc(e.n)}">✕</button>`);
   if (open) {
@@ -1485,6 +1643,7 @@ function itemHTML(e) {
       `<output aria-label="Ilość">${frac(q)}</output><button type="button" class="step" data-qty="${e.id}" data-dir="1" aria-label="Więcej">+</button></div>` +
       qtyInputs(e, 'data-grams', 'data-pcs', e.id) + `</div>` +
       `<div class="ctl">` + (f && f.L ? `<div class="seg" role="group" aria-label="Wersja"><button type="button" data-var="${e.id}" data-v="L" aria-pressed="${e.v === 'L'}">LIGHT</button><button type="button" data-var="${e.id}" data-v="P" aria-pressed="${e.v !== 'L'}">PEŁNA</button></div>` : '') +
+      (e.ing || (vf && vf.ing) ? `<button type="button" class="btn2 sm" data-cment="${e.id}">Składniki</button>` : '') +
       `<button type="button" class="rm" data-rm="${e.id}">Usuń</button></div></div>`;
   }
   return h + `</div>`;
@@ -1579,7 +1738,7 @@ function monthHTML() {
 
 // Jednostka · przepis w pierwszej linii, skład pod spodem — zawijany, nieucinany
 function subHTML(f) {
-  const meta = [esc(unitTxt(f)), f.r ? '<i class="tag">przepis</i>' : ''].filter(Boolean).join(' · ');
+  const meta = [esc(unitTxt(f)), f.ing ? `<i class="tag">składniki${f.por > 1 ? ` · ${d1(f.por)} porc.` : ''}</i>` : '', f.r ? '<i class="tag">przepis</i>' : ''].filter(Boolean).join(' · ');
   return (meta ? `<small>${meta}</small>` : '') + (f.d ? `<small>${esc(f.d)}</small>` : '') +
     (f.L && f.L.d ? `<small><b>LIGHT:</b> ${esc(f.L.d)}</small>` : '');
 }
@@ -1597,7 +1756,7 @@ function plistHTML() {
   }).join('');
 }
 function prodHTML() {
-  let h = `<button type="button" class="addex" data-act="fnew">+ Dodaj produkt lub posiłek</button>` +
+  let h = `<div class="btnrow prodadd"><button type="button" class="addex" data-act="fnew">+ Dodaj produkt</button><button type="button" class="addex" data-act="cm-newp">+ Złóż posiłek ze składników</button></div>` +
     `<div class="psearch"><input id="pq" type="search" placeholder="Szukaj produktu…" autocomplete="off" value="${esc(S.pq || '')}" aria-label="Szukaj produktu"></div>` +
     `<div class="plist" id="plist">${plistHTML()}</div>`;
   const rm = S.foods.removed.map(id => S.foods.added.find(a => a.id === id) || (BASEM[id] && { ...BASEM[id], ...(S.foods.edits[id] || {}) })).filter(Boolean);
@@ -1774,7 +1933,7 @@ function addOwn() {
 }
 
 /* ---------- Edytor produktu ---------- */
-const FE = { id: null };
+const FE = { id: null, ing: null, Ling: null, por: 1, rest: null, Lrest: null };
 const fform = $('#fed-form');
 const FF = n => fform.elements[n];
 FF('c').innerHTML = CATS.map(([id, n]) => `<option value="${id}">${esc(n)}</option>`).join('');
@@ -1785,7 +1944,27 @@ function fillFood(f) {
   for (const x of ['k', 'b', 't', 'w']) { FF(x).value = d1(f[x]); FF('L' + x).value = f.L ? d1(f.L[x]) : ''; }
   FF('Ld').value = f.L ? f.L.d || '' : '';
   FF('hasL').checked = !!f.L;
-  lboxSync();
+  // składniki: kopia robocza — zapis dopiero przyciskiem „Zapisz”; wyrównanie do planu zawsze z planu
+  const b = FE.id && BASEM[FE.id];
+  FE.ing = f.ing ? f.ing.map(r => ({ ...r })) : null;
+  FE.Ling = f.L && f.L.ing ? f.L.ing.map(r => ({ ...r })) : null;
+  FE.por = f.por || 1;
+  FE.rest = (b && b.rest) || null;
+  FE.Lrest = (b && b.L && b.L.rest) || null;
+  lboxSync(); fedIngSync();
+}
+// Ze składnikami kalorie i makro są liczone (pola tylko do odczytu)
+function fedIngSync() {
+  const on = !!FE.ing, Lon = !!FE.Ling;
+  for (const x of MAC) { FF(x).readOnly = on; FF('L' + x).readOnly = Lon; }
+  if (on) { const v = ingVal(FE.ing, FE.por, FE.rest); for (const x of MAC) FF(x).value = d1(v[x]); }
+  if (Lon) { const v = ingVal(FE.Ling, FE.por, FE.Lrest); for (const x of MAC) FF('L' + x).value = d1(v[x]); }
+  $('#fed-unit').textContent = on ? 'Kalorie i makro — na 1 porcję, liczone ze składników.' : 'Kalorie i makro poniżej — na 1 jednostkę.';
+  $('#fed-ingtxt').textContent = on ? `Składniki: ${FE.ing.length}${FE.por > 1 ? ` · całość na ${d1(FE.por)} porc.` : ''}` : '';
+  $('[data-act="fed-ing"]', fform).textContent = on ? 'Zmień składniki' : 'Złóż ze składników';
+  $('[data-act="fed-noing"]', fform).hidden = !on; $('[data-act="fed-noLing"]', fform).hidden = !Lon;
+  $('#fed-Lingtxt').textContent = Lon ? `Składniki LIGHT: ${FE.Ling.length}` : '';
+  $('[data-act="fed-Ling"]', fform).textContent = Lon ? 'Zmień składniki LIGHT' : 'Złóż LIGHT ze składników';
 }
 function openFood(id) {
   FE.id = id;
@@ -1829,18 +2008,21 @@ const same = (a, b) => JSON.stringify(a == null ? null : a) === JSON.stringify(b
 function saveFood() {
   const v = readFood();
   if (!v) return;
+  if (FE.ing) Object.assign(v, ingVal(FE.ing, FE.por, FE.rest), { ing: FE.ing, por: FE.por > 1 ? FE.por : null });
+  else { v.ing = null; v.por = null; }
+  if (v.L && FE.Ling) { Object.assign(v.L, ingVal(FE.Ling, FE.por, FE.Lrest), { ing: FE.Ling }); if (FE.Lrest) v.L.rest = FE.Lrest; }
   const id = FE.id;
   if (id && BASEM[id]) {
     const b = BASEM[id], d = {};
-    for (const k of ['n', 'c', 'u', 'g', 'pc', 'k', 'b', 't', 'w', 'd', 'r', 'L']) if (!same(v[k] === '' ? null : v[k], b[k] === '' ? null : b[k])) d[k] = v[k];
+    for (const k of ['n', 'c', 'u', 'g', 'pc', 'k', 'b', 't', 'w', 'd', 'r', 'L', 'ing', 'por']) if (!same(v[k] === '' ? null : v[k], b[k] === '' ? null : b[k])) d[k] = v[k];
     if (Object.keys(d).length) S.foods.edits[id] = d; else delete S.foods.edits[id];
   } else if (id) {
     const a = S.foods.added.find(x => x.id === id);
     Object.assign(a, v);
-    for (const k of ['L', 'g', 'u', 'r', 'pc']) if (!a[k]) delete a[k];
+    for (const k of ['L', 'g', 'u', 'r', 'pc', 'ing', 'por']) if (!a[k]) delete a[k];
   } else {
     const f = { id: 'U' + Date.now().toString(36), ...v };
-    for (const k of ['L', 'g', 'u', 'r', 'pc']) if (!f[k]) delete f[k];
+    for (const k of ['L', 'g', 'u', 'r', 'pc', 'ing', 'por']) if (!f[k]) delete f[k];
     S.foods.added.push(f);
   }
   buildFoods(); persist(); closeDlg($('#fed')); render(true);
@@ -1853,6 +2035,150 @@ function removeFood(id) {
   render(true);
 }
 function restoreFood(id) { S.foods.removed = S.foods.removed.filter(x => x !== id); buildFoods(); persist(); render(true); }
+
+/* ---------- Składniki: składanie posiłku i zmiana składników ---------- */
+// mode: 'food' — lista produktu z edytora (wraca do edytora), 'entry' — wpis dnia (tylko ten dzień, opcjonalnie też produkt),
+// 'new' — nowy posiłek z „Produktów” albo z okna „Dodaj” (wtedy trafia też do dnia)
+const CM = { rows: [] };
+$('#cm-c').innerHTML = CATS.map(([id, n]) => `<option value="${id}">${esc(n)}</option>`).join('');
+const pickMac = x => Object.fromEntries(MAC.map(m => [m, x[m]]));
+function openCmp(o) {
+  Object.assign(CM, { mode: 'new', which: 'P', rest: null, self: null, date: null, id: null, f: false, v: null, pick: false, flash: -1, title: 'Składniki' }, o);
+  CM.rows = (o.rows || []).map(r => ({ ...r }));
+  CM.por = o.por || 1;
+  CM.start = ingKey(CM.rows) + '|' + CM.por;
+  CM.was = CM.rows.length ? ingVal(CM.rows, CM.por, CM.rest) : null;
+  const nw = CM.mode === 'new';
+  $('#cm-h').textContent = CM.title;
+  $('#cm-meta').hidden = CM.mode === 'entry' || CM.which === 'L';
+  $('#cm-nbox').hidden = $('#cm-cbox').hidden = !nw;
+  $('#cm-n').value = ''; $('#cm-c').value = 'moje'; $('#cm-por').value = d1(CM.por);
+  const box = CM.mode === 'entry' ? (CM.f ? `Zapamiętaj też w produkcie${CM.v === 'L' ? ' (wersja LIGHT)' : ''} — na kolejne dni` : '') : nw && CM.pick ? 'Zapamiętaj na liście produktów' : '';
+  $('#cm-savebox').hidden = !box; $('#cm-savelbl').textContent = box; $('#cm-save').checked = nw && CM.pick;
+  $('#cm-q').value = ''; $('#cm-hits').innerHTML = ''; $('#cm-err').textContent = '';
+  $('[data-act="cm-ok"]').textContent = CM.mode === 'food' ? 'Gotowe' : nw && CM.pick ? 'Dodaj' : 'Zapisz';
+  cmRender();
+  showDlg($('#cmp'));
+  $('#cm-list').scrollTop = 0;
+}
+// Ilość: produkty na wagę — gramy (i sztuki, gdy znana waga sztuki); liczone sztukami / porcjami — także − / +
+function cmRowHTML(r, i) {
+  const q = r.q || 1, step = !r.g || counted(r.u), lbl = esc(r.n);
+  return `<div class="cm-r${i === CM.flash ? ' new' : ''}"><div class="cm-t"><span class="cm-nm">${lbl}</span><span class="cm-k"><b>${k0(r.k * q)}</b> kcal · ${g0(r.b * q)} B</span></div>` +
+    `<div class="ctl">` + (step ? `<div class="qty"><button type="button" class="step" data-cmstep="${i}" data-dir="-1" aria-label="Mniej: ${lbl}">−</button><output>${frac(q)}</output>` +
+    `<button type="button" class="step" data-cmstep="${i}" data-dir="1" aria-label="Więcej: ${lbl}">+</button></div>` : '') +
+    (r.g ? `<label class="gin"><input data-cmg="${i}" inputmode="decimal" autocomplete="off" value="${q * r.g < 10 ? d1(q * r.g) : g0(q * r.g)}" aria-label="${lbl} — ilość w ${sfx(r.u)}"> ${sfx(r.u)}</label>` : '') +
+    (r.g && r.pc ? `<label class="gin"><input data-cmp="${i}" inputmode="decimal" autocomplete="off" value="${pcsTxt(q * r.g / r.pc)}" aria-label="${lbl} — ilość w sztukach"> ${esc(pcsLbl(r))}</label>` : '') +
+    `<button type="button" class="x" data-cmrm="${i}" aria-label="Usuń składnik: ${lbl}">✕</button></div></div>`;
+}
+function cmRender() {
+  const R = CM.rows, rs = CM.rest, por = CM.por || 1;
+  let h = R.length ? R.map(cmRowHTML).join('') : `<p class="pk-empty">Brak składników — wyszukaj wyżej i dodaj.</p>`;
+  if (rs && R.length && MAC.some(m => Math.round(rs[m]))) {
+    h += `<div class="cm-rest"><span>Wyrównanie do wartości z planu<small>przyprawy, warzywa „na oko”, zaokrąglenia</small></span><span class="cm-k">${sgn(rs.k)} kcal · ${sgn(rs.b)} B</span></div>`;
+  }
+  $('#cm-rows').innerHTML = h;
+  CM.flash = -1;
+  const v = ingVal(R, por, rs), ch = CM.was && ingKey(R) + '|' + por !== CM.start;
+  $('#cm-sum').innerHTML = (por > 1 ? `Całość ${k0(ingSum(R).k + (rs ? rs.k * por : 0))} kcal · na porcję: ` : 'Razem: ') +
+    `<b>${k0(v.k)} kcal</b> · ${g0(v.b)} B · ${g0(v.t)} T · ${g0(v.w)} W` + (ch ? ` <small>(było ${k0(CM.was.k)} kcal · ${g0(CM.was.b)} B)</small>` : '');
+}
+// Szukanie składnika: nazwa dokładnie, cała fraza w nazwie (od pierwszego słowa, potem gdziekolwiek), nazwa od pierwszego słowa, sam opis;
+// w każdej grupie najpierw zwykłe produkty, potem posiłki
+function cmHits() {
+  const q = $('#cm-q').value.trim();
+  if (!q) { $('#cm-hits').innerHTML = ''; return; }
+  const m = matcher(q), nq = norm(q), w0 = nq.split(/\s+/)[0];
+  const rank = f => { const n = norm(f.n), nm = m({ n: f.n }); return (n === nq ? 0 : nm && n.startsWith(w0) ? 1 : nm ? 2 : n.startsWith(w0) ? 3 : 4) * 2 + (f.ing ? 1 : 0); };
+  const list = FOODS.filter(f => f.id !== CM.self && m(f)).map(f => [rank(f), f]).sort((a, b) => a[0] - b[0]).map(x => x[1]);
+  $('#cm-hits').innerHTML = list.length ? list.slice(0, 40).map(f => `<button type="button" class="pk-one" data-cmadd="${f.id}"><span class="pk-nm">${esc(f.n)}${f.u ? `<small>${esc(unitTxt(f))}</small>` : ''}</span>` +
+    `<span class="pk-k">${k0(f.k)}<small>kcal · ${g0(f.b)} B</small></span></button>`).join('') : `<p class="pk-empty">Nic nie znaleziono — produkt dodasz w zakładce „Produkty”.</p>`;
+}
+// Dodany składnik: 1 jednostka (100 g, 1 szt.) i od razu pole gramów do wpisania
+function cmAdd(id) {
+  const f = FM[id];
+  if (!f) return;
+  let i = CM.rows.findIndex(r => r.f === id);
+  if (i < 0) { CM.rows.push({ ...snap(f), q: 1 }); i = CM.rows.length - 1; }
+  CM.flash = i;
+  $('#cm-q').value = ''; cmHits(); cmRender();
+  const inp = $(`[data-cmg="${i}"]`) || $(`[data-cmp="${i}"]`);
+  if (inp) { inp.focus(); inp.select(); } else { const el = $('#cm-rows').children[i]; if (el && el.scrollIntoView) el.scrollIntoView({ block: 'nearest' }); }
+}
+function cmSetQ(i, q) { const r = CM.rows[i]; if (r && q > 0) { r.q = Math.min(200, R3(q)); } cmRender(); }
+// Zmiana składników w produkcie (z wpisu dnia z „Zapamiętaj”): plan — jako zmiana nakładana na plan, własny — wprost
+function ingToFood(f, v, rows, por) {
+  const id = f.id, b = BASEM[id], isL = v === 'L' && f.L;
+  const ch = isL ? { L: { ...f.L, ...ingVal(rows, por, f.L.rest), ing: rows, d: ingDiff(f.ing || [], rows) } }
+    : { ...ingVal(rows, por, f.rest), ing: rows, por, d: ingDesc(rows, por) };
+  if (b) {
+    const e = { ...(S.foods.edits[id] || {}), ...ch };
+    if (isL ? b.L && ingKey(rows) === ingKey(b.L.ing) : ingKey(rows) === ingKey(b.ing) && por === (b.por || 1)) {
+      if (isL) delete e.L; else for (const k of [...MAC, 'ing', 'por', 'd']) delete e[k];
+    }
+    if (Object.keys(e).length) S.foods.edits[id] = e; else delete S.foods.edits[id];
+  } else {
+    const a = S.foods.added.find(x => x.id === id);
+    if (a) { Object.assign(a, ch); if (!(a.por > 1)) delete a.por; }
+  }
+  buildFoods();
+}
+// Powrót do edytora produktu: lista i opis (opis podmieniany, jeśli był pusty, z planu albo wygenerowany)
+function cmBack() {
+  const R = CM.rows.length ? CM.rows : null, b = FE.id && BASEM[FE.id];
+  if (CM.which === 'L') {
+    const old = FE.Ling;
+    FE.Ling = R;
+    if (R && ingKey(old) !== ingKey(R)) {
+      const t = FF('Ld').value.trim();
+      if (!t || (b && b.L && t === b.L.d) || (old && t === ingDiff(FE.ing, old))) FF('Ld').value = ingDiff(FE.ing || [], R);
+    }
+  } else {
+    const old = FE.ing, op = FE.por;
+    FE.ing = R; FE.por = CM.por || 1;
+    if (R && (ingKey(old) !== ingKey(R) || op !== FE.por)) {
+      const t = FF('d').value.trim();
+      if (!t || (b && t === b.d) || (old && t === ingDesc(old, op))) FF('d').value = ingDesc(R, FE.por);
+    }
+  }
+  fedIngSync();
+}
+function cmOk() {
+  const R = CM.rows, por = CM.por || 1, err = t => { $('#cm-err').textContent = t; };
+  if (CM.mode === 'food') { cmBack(); closeDlg($('#cmp')); return; }
+  if (!R.length) return err('Dodaj co najmniej jeden składnik.');
+  const v = ingVal(R, por, CM.rest);
+  if (CM.mode === 'entry') {
+    const d = mat(CM.date), e = findE(d, CM.id);
+    if (e) {
+      if (e.f && FM[e.f] && $('#cm-save').checked) ingToFood(FM[e.f], e.v, R, por); // najpierw produkt — wtedy wpis = produkt, bez „zmienione”
+      const f = e.f ? FM[e.f] : null, vf = verOf(f, e.v);
+      if (vf && vf.ing && ingKey(R) === ingKey(vf.ing) && por === (f.por || 1)) { delete e.ing; delete e.por; delete e.rest; Object.assign(e, pickMac(vf)); }
+      else {
+        Object.assign(e, v, { ing: R });
+        if (por > 1) e.por = por; else delete e.por;
+        if (CM.rest) e.rest = CM.rest; else delete e.rest;
+      }
+      e.p = false;
+      persist();
+    }
+    closeDlg($('#cmp')); render(true);
+    return;
+  }
+  const n = $('#cm-n').value.trim(), keep = !CM.pick || $('#cm-save').checked;
+  if (keep && !n) { err('Wpisz nazwę.'); $('#cm-n').focus(); return; }
+  let f = null;
+  if (keep) {
+    f = { id: 'U' + Date.now().toString(36), c: $('#cm-c').value || 'moje', n, ...v, d: ingDesc(R, por), ing: R };
+    if (por > 1) f.por = por;
+    S.foods.added.push(f);
+    buildFoods();
+    S.popen[f.c] = true;
+  }
+  closeDlg($('#cmp'));
+  if (CM.pick) addEntry(f ? snap(FM[f.id]) : { n: n || 'Posiłek ze składników', ...v, ing: R, ...(por > 1 ? { por } : {}) });
+  else { persist(); render(true); }
+}
 
 /* ---------- Edytor posiłku dnia ---------- */
 const SE = { id: null };
@@ -1962,7 +2288,7 @@ document.addEventListener('click', ev => {
   if (ds.var) {
     change(d => {
       const e = findE(d, ds.var), f = e && FM[e.f];
-      if (f) Object.assign(e, snap(f, ds.v), { p: false });
+      if (f) { delete e.ing; delete e.por; delete e.rest; Object.assign(e, snap(f, ds.v), { p: false }); }
     });
     return;
   }
@@ -1983,6 +2309,17 @@ document.addEventListener('click', ev => {
     return;
   }
   if (ds.fedit) { openFood(ds.fedit); return; }
+  if (ds.cmadd) { cmAdd(ds.cmadd); return; }
+  if (ds.cmstep) { const r = CM.rows[+ds.cmstep]; if (r) cmSetQ(+ds.cmstep, stepQ(r.q || 1, Number(ds.dir), r)); return; }
+  if (ds.cmrm) { CM.rows.splice(+ds.cmrm, 1); cmRender(); return; }
+  if (ds.cment) {
+    const e = findE(dayOf(S.date), ds.cment);
+    if (!e) return;
+    const f = e.f ? FM[e.f] : null, vf = verOf(f, e.v);
+    openCmp({ mode: 'entry', date: S.date, id: e.id, f: !!f, v: e.v, rows: e.ing || (vf && vf.ing) || [], por: e.ing ? e.por : f && f.por,
+      rest: e.ing ? e.rest : vf && vf.rest, self: e.f, title: 'Składniki · ' + e.n + (e.v === 'L' ? ' · LIGHT' : e.v ? ' · PEŁNA' : '') });
+    return;
+  }
   if (ds.sedit) { openSlot(ds.sedit); return; }
   if (ds.srestore) { setSlotHidden(ds.srestore, false); render(true); return; }
   if (ds.frestore) { restoreFood(ds.frestore); return; }
@@ -2013,6 +2350,18 @@ document.addEventListener('click', ev => {
       return;
     }
     case 'fnew': openFood(null); return;
+    case 'cm-newp': openCmp({ mode: 'new', title: 'Nowy posiłek ze składników' }); return;
+    case 'cm-pick': openCmp({ mode: 'new', pick: true, title: 'Złóż ze składników · ' + slotInfo(PK.slot).n }); return;
+    case 'cm-close': closeDlg($('#cmp')); return;
+    case 'cm-ok': cmOk(); return;
+    case 'fed-noing': FE.ing = null; fedIngSync(); FF('k').focus(); return;
+    case 'fed-noLing': FE.Ling = null; fedIngSync(); FF('Lk').focus(); return;
+    case 'fed-ing': case 'fed-Ling': {
+      const b = FE.id && BASEM[FE.id], nm = FF('n').value.trim() || 'nowy produkt';
+      if (ds.act === 'fed-ing') openCmp({ mode: 'food', which: 'P', rows: FE.ing || (b && b.ing) || [], por: FE.por, rest: FE.rest, self: FE.id, title: 'Składniki · ' + nm });
+      else openCmp({ mode: 'food', which: 'L', rows: FE.Ling || (b && b.L && b.L.ing) || FE.ing || [], por: FE.por, rest: FE.Lrest, self: FE.id, title: 'Składniki LIGHT · ' + nm });
+      return;
+    }
     case 'fed-cancel': closeDlg($('#fed')); return;
     case 'fed-base': fillFood({ ...BASEM[FE.id] }); $('#fed-err').textContent = 'Wpisane wartości z planu — zatwierdź „Zapisz”.'; return;
     case 'fed-del':
@@ -2079,10 +2428,15 @@ document.addEventListener('change', ev => {
     return;
   }
   if (t.id === 'pk-pcs') { const { last } = pkLast(); const v = num(t.value); if (last && v > 0) pkSetQ(qFromPcs(last, v)); return; }
+  // składniki: gramy / sztuki / liczba porcji
+  if (t.dataset && t.dataset.cmg) { const r = CM.rows[+t.dataset.cmg], v = num(t.value); if (r && r.g && v > 0) cmSetQ(+t.dataset.cmg, v / r.g); else cmRender(); return; }
+  if (t.dataset && t.dataset.cmp) { const r = CM.rows[+t.dataset.cmp], v = num(t.value); if (r && v > 0) cmSetQ(+t.dataset.cmp, qFromPcs(r, v)); else cmRender(); return; }
+  if (t.id === 'cm-por') { const v = num(t.value); if (v > 0 && v <= 50) CM.por = Math.round(v * 10) / 10; t.value = d1(CM.por); cmRender(); return; }
 });
 document.addEventListener('input', ev => {
   const t = ev.target;
   if (t.id === 'pk-q') { pickList(); $('#pk-list').scrollTop = 0; return; }
+  if (t.id === 'cm-q') { cmHits(); $('#cm-list').scrollTop = 0; return; }
   if (t.id === 'pq') { S.pq = t.value; $('#plist').innerHTML = plistHTML(); return; }
   if (t.dataset && t.dataset.tg) {
     const f = t.dataset.f, v = parseInt(t.value.replace(/[−–]/, '-').replace('+', '').trim(), 10);
@@ -2115,7 +2469,8 @@ document.addEventListener('toggle', ev => {
 }, true);
 $('#own-form').addEventListener('submit', ev => { ev.preventDefault(); addOwn(); });
 // Enter w polu gramów: zatwierdź bez wysyłania formularza
-document.addEventListener('keydown', ev => { if (ev.key === 'Enter' && (ev.target.id === 'pk-grams' || ev.target.id === 'pk-pcs' || (ev.target.dataset && (ev.target.dataset.grams || ev.target.dataset.pcs || ev.target.dataset.burn || ev.target.dataset.kg || ev.target.dataset.bf || ev.target.dataset.bfz || ev.target.dataset.rate || ev.target.dataset.adj || ev.target.dataset.base || ev.target.dataset.tg)))) { ev.preventDefault(); ev.target.blur(); } });
+document.addEventListener('keydown', ev => { if (ev.key === 'Enter' && ev.target.id === 'cm-q') { ev.preventDefault(); const b = $('#cm-hits [data-cmadd]'); if (b) cmAdd(b.dataset.cmadd); return; } });
+document.addEventListener('keydown', ev => { if (ev.key === 'Enter' && (ev.target.id === 'pk-grams' || ev.target.id === 'pk-pcs' || ev.target.id === 'cm-por' || (ev.target.dataset && (ev.target.dataset.cmg || ev.target.dataset.cmp || ev.target.dataset.grams || ev.target.dataset.pcs || ev.target.dataset.burn || ev.target.dataset.kg || ev.target.dataset.bf || ev.target.dataset.bfz || ev.target.dataset.rate || ev.target.dataset.adj || ev.target.dataset.base || ev.target.dataset.tg)))) { ev.preventDefault(); ev.target.blur(); } });
 fform.addEventListener('submit', ev => { ev.preventDefault(); saveFood(); });
 $('#import-file').addEventListener('change', ev => { const f = ev.target.files && ev.target.files[0]; if (f) importData(f); ev.target.value = ''; });
 window.addEventListener('hashchange', () => render());
