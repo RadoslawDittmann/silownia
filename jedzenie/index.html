@@ -29,6 +29,9 @@
   --prot: #1E4FA6;
   --warn: #A35A00;
   --low: #A3261D;
+  --hi-soft: #F6DCD9;
+  --lo-ink: #8A4B00;
+  --lo-soft: #F6E7CF;
   --font-display: "Avenir Next Condensed", "Arial Narrow", "Roboto Condensed", system-ui, sans-serif;
   --font-body: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
   --radius: 14px;
@@ -38,6 +41,7 @@
   :root {
     --bg: #0F1312; --surface: #181D1C; --ink: #E8ECEA; --muted: #9AA5A1; --line: #2A3230; --chip: #252D2B;
     --accent: #5CC9A0; --accent-ink: #0B1A14; --accent-soft: #173327; --prot: #7FA6FF; --warn: #E2B456; --low: #FF8A80;
+    --hi-soft: #3E211F; --lo-ink: #E2B456; --lo-soft: #362B15;
     color-scheme: dark;
   }
 }
@@ -107,11 +111,12 @@ main { padding-block: 10px 120px; display: grid; gap: 8px; }
 .sum .big b { font-family: var(--font-display); font-size: 2rem; line-height: 1; color: var(--ink); }
 .sum .big.sm { font-size: 0.9rem; margin-top: 4px; }
 .sum .big.sm b { font-family: var(--font-body); font-size: 1rem; }
-.over { color: var(--warn); font-style: normal; font-weight: 700; }
+.over { color: var(--st, var(--low)); font-style: normal; font-weight: 700; }
 .bar { display: block; height: 8px; background: var(--chip); border-radius: 4px; overflow: hidden; }
 .bar i { display: block; height: 100%; background: var(--accent); border-radius: 4px; }
 .bar.pr i { background: var(--prot); }
-.bar i.over { background: var(--warn); }
+.bar i.c-ok, .bar i.c-hi { background: var(--st); }
+.bar i.c-lo { background: var(--warn); }
 .plan { display: flex; justify-content: space-between; align-items: center; gap: 8px 12px; flex-wrap: wrap; font-size: 0.86rem; color: var(--muted); border-top: 1px solid var(--line); padding-top: 4px; margin-top: 2px; }
 
 /* Posiłki dnia */
@@ -202,7 +207,13 @@ main { padding-block: 10px 120px; display: grid; gap: 8px; }
 .kv dd { font-weight: 700; text-align: right; white-space: nowrap; }
 .kv dd + dd { font-weight: 400; text-align: left; white-space: normal; color: var(--muted); font-size: 0.8rem; }
 .kv .gin input { min-height: 34px; }
-.cel, .kv dd.cel, .wsum .cel, .mt td.cel, .wd small.cel, .sum .big .cel { color: var(--accent); font-weight: 700; }
+/* Cel w pastylce: szara — bez oceny (dzień trwa, brak wpisów, plan), zielona — w celu, czerwona — znacznie powyżej, pomarańczowa — znacznie poniżej */
+.c-ok { --st: var(--accent); --st-bg: var(--accent-soft); }
+.c-hi { --st: var(--low); --st-bg: var(--hi-soft); }
+.c-lo { --st: var(--lo-ink); --st-bg: var(--lo-soft); }
+.cel { display: inline-block; padding: 0 5px; border-radius: 6px; background: var(--st-bg, var(--chip)); color: var(--st, var(--ink)); font-weight: 700; line-height: 1.4; }
+.kv dd .cel, .mt td .cel { margin-right: -5px; }
+.wd .v .cel { font-size: 0.82rem; }
 
 /* Produkty */
 .addex { width: 100%; min-height: 48px; padding: 4px 8px; border: 1.5px dashed var(--line); border-radius: var(--radius); background: none; color: var(--accent); font-weight: 700; }
@@ -1172,6 +1183,8 @@ const BFZ_DEF = { lo: 11, mid: 13, hi: 16 }, BF_UP = 100;
 // Korekta z wagi: co 14 dni tempo zmiany masy z 28 dni (prosta przez pomiary) porównane z tempem docelowym; różnica ponad 0,25 kg/mies.
 // → ±100 kcal na dzień (poza dniem postu), łącznie najwyżej ±400. Po zmianie następne sprawdzenie po 28 dniach (pełne 4 tygodnie na nowych
 // kaloriach). Tempo docelowe (settings.rate, kg/mies.) przy celu tłuszczu; powyżej maleje do 0 przy górnej granicy, poniżej rośnie do ×1,5.
+// W celu: kcal ±5%, składniki ±10% (tempo wagi: ±ADJ.tol kg/mies.); dalej — znacznie powyżej / poniżej
+const TOL = { k: 0.05, g: 0.1 };
 const ADJ = { every: 14, after: 28, win: 28, tol: 0.25, step: 100, max: 400, minN: 4, minSpan: 20 }, RATE_DEF = 0.5, RATE_UP = 1.5;
 
 /* ---------- Pomocnicze ---------- */
@@ -1555,20 +1568,27 @@ function setAdj(v) {
 }
 const p1 = x => (x >= 0.05 ? '+' : x <= -0.05 ? '−' : '') + kgFmt(Math.abs(x));
 const rateFmt = x => String(Math.round(x * 100) / 100).replace('.', ',');
-// Wiersz zestawienia: etykieta, liczba (c — cel, wyróżniony), krótki dopisek
-const kv = (l, v, n, c) => `<dt>${l}</dt><dd${c ? ' class="cel"' : ''}>${v}</dd><dd>${n || ''}</dd>`;
+// Ocena względem celu: 'ok' — w celu (±tol), 'hi' — znacznie powyżej, 'lo' — znacznie poniżej, '' — bez oceny
+const mark = (v, g, tol) => !(g > 0) ? '' : v > g * (1 + tol) ? 'hi' : v < g * (1 - tol) ? 'lo' : 'ok';
+// Dzień w toku (dziś i później): „poniżej” jeszcze nic nie znaczy — bez oceny, dopóki zjedzone nie dojdzie do celu
+const markDay = (has, v, g, tol, live) => { const s = has ? mark(v, g, tol) : ''; return live && s === 'lo' ? '' : s; };
+const markPace = (v, g) => v > g + ADJ.tol ? 'hi' : v < g - ADJ.tol ? 'lo' : 'ok';
+const cls = s => s ? ' c-' + s : '';
+const pill = (v, s) => `<span class="cel${cls(s)}">${v}</span>`;
+// Wiersz zestawienia: etykieta, liczba (c — cel: 1 bez oceny albo ocena), krótki dopisek
+const kv = (l, v, n, c) => `<dt>${l}</dt><dd>${c ? pill(v, c === 1 ? '' : c) : v}</dd><dd>${n || ''}</dd>`;
 const kvs = rows => rows ? `<dl class="kv">${rows}</dl>` : '';
-const celTxt = v => `<span class="cel">cel ${v}</span>`;
+const celTxt = (v, s) => pill('cel ' + v, s);
 // Ostatnia automatyczna zmiana z ostatnich 7 dni — informacja w podsumowaniu dnia
 function adjNote(date) {
   const L = S.settings.adj || [], e = L[L.length - 1];
   if (!e || !e.dk || e.m || date !== todayISO() || diffD(e.d, date) > 6) return '';
-  return kv('Korekta', sgn(e.dk), `od ${dm(e.d)} · tempo ${kgTxt(e.r)} kg/mies., ${celTxt(kgTxt(e.g))}`);
+  return kv('Korekta', sgn(e.dk), `od ${dm(e.d)} · tempo ${kgTxt(e.r)} kg/mies., ${celTxt(kgTxt(e.g), e.r != null ? markPace(e.r, e.g) : '')}`);
 }
 // Tempo wagi, trend tłuszczu i korekta — w planie tygodnia (cur = tydzień z dzisiejszym dniem)
 function paceHTML(date, cur) {
   const tr = trendAt('kg', date), f = bfAt(date), g = rateAt(f), bt = trendAt('bf', date), lt = trendAt('lbm', date), k = adjK(date);
-  let s = kv('Tempo', tr ? kgTxt(tr.v) : '—', `kg/mies. · ${celTxt(kgTxt(g))}${tr ? '' : ` · min. ${ADJ.minN} pomiary w 3 tyg.`}`);
+  let s = kv('Tempo', tr ? kgTxt(tr.v) : '—', `kg/mies. · ${celTxt(kgTxt(g), tr ? markPace(tr.v, g) : '')}${tr ? '' : ` · min. ${ADJ.minN} pomiary w 3 tyg.`}`);
   if (bt) s += kv('Trend tł.', p1(bt.v), `pkt/mies.${lt ? ` · beztł. ${kgTxt(lt.v)} kg` : ''}`);
   if (cur) {
     const nx = adjNext(), today = todayISO();
@@ -1581,8 +1601,9 @@ const zoneTxt = g => { const z = bfSet(); return !g.zone ? '' : g.bf >= z.hi ? `
 const plusTxt = p => p < 0 ? `deficyt ${k0(-p)}` : `nadwyżka +${k0(p)}`;
 // Dni z wpisami do dziś włącznie — dzisiejszy liczy się na bieżąco (zjedzone dotąd, wydatek z zegarka albo domyślny);
 // wszystko liczone przy każdym renderze, więc każda zmiana (wpis, rodzaj dnia, zegarek, waga, ustawienia) od razu jest w sumach
+const GMAC = [['k', 'kcal', TOL.k], ['b', 'b', TOL.g], ['t', 't', TOL.g], ['w', 'w', TOL.g]];
 function stats(dates) {
-  const today = todayISO(), st = { n: 0, nw: 0, k: 0, b: 0, t: 0, w: 0, burn: 0, gk: 0, gb: 0, gt: 0, gw: 0, today: false, tb: 0 };
+  const today = todayISO(), st = { n: 0, nw: 0, k: 0, b: 0, t: 0, w: 0, burn: 0, gk: 0, gb: 0, gt: 0, gw: 0, today: false, tb: 0, x: { k: 0, b: 0, t: 0, w: 0 }, d: {} };
   for (const date of dates) {
     if (date > today) continue;
     const d = dayOf(date);
@@ -1592,7 +1613,19 @@ function stats(dates) {
     st.burn += g.burn; if (d.burn != null) st.nw++;
     st.gk += g.kcal; st.gb += g.b; st.gt += g.t; st.gw += g.w;
     if (date === today) { st.today = true; st.tb = e.k - g.burn; }
+    // ocena: dzień miniony — zjedzone; dziś — co najmniej cel (jeszcze można dojeść), chyba że już powyżej
+    for (const [f, gf, tol] of GMAC) {
+      const v = e[f], gv = g[gf];
+      if (date < today) { st.x[f] += v; st.d[f] = 1; } else { st.x[f] += Math.max(v, gv); if (v >= gv * (1 - tol)) st.d[f] = 1; }
+    }
   }
+  // kolor zgodny z liczbami (średnia z dzisiejszym „dotąd”); tylko gdy wychodzi „poniżej”, a dziś trwa —
+  // decyduje wynik z dzisiejszym dniem liczonym jako cel (czy poniżej były dni minione)
+  st.s = f => {
+    if (!st.d[f]) return '';
+    const tol = f === 'k' ? TOL.k : TOL.g, r = mark(st[f], st['g' + f], tol);
+    return r !== 'lo' ? r : mark(st.x[f], st['g' + f], tol) === 'lo' ? 'lo' : 'ok';
+  };
   return st;
 }
 // Skąd wydatek: z zegarka albo domyślny (przewidywany z masy i rodzaju dnia)
@@ -1600,13 +1633,13 @@ const burnSrc = (nw, n) => nw === n ? 'z zegarka' : nw ? `zegarek ${nw}/${n}, re
 function statsHTML(st) {
   if (!st.n) return `<section class="wsum" aria-label="Kalorie i składniki"><h3>Średnio na dzień</h3><p>Brak odhaczonych posiłków.</p></section>`;
   const n = st.n, bal = st.k - st.burn;
-  const row = (name, v, unit, goal, kc) => `<tr><th>${name}</th><td>${k0(v / n)}${unit}</td><td class="cel">${k0(goal / n)}${unit}</td><td>${kc ? pctE(v * kc, st.k) + '%' : ''}</td></tr>`;
+  const row = (name, v, unit, goal, kc, s) => `<tr><th>${name}</th><td>${k0(v / n)}${unit}</td><td>${pill(k0(goal / n), s)}${unit}</td><td>${kc ? pctE(v * kc, st.k) + '%' : ''}</td></tr>`;
   return `<section class="wsum" aria-label="Kalorie i składniki"><h3>Średnio na dzień</h3>` +
     `<p class="sub">${n} ${dniTxt(n)} z wpisami${st.today ? ', w tym dziś' : ''}</p>` +
     `<table class="mt"><thead><tr><th></th><th>Zjedzone</th><th>Cel</th><th>Energii</th></tr></thead><tbody>` +
-    row('kcal', st.k, '', st.gk) + row('Białko', st.b, ' g', st.gb, 4) + row('Tłuszcz', st.t, ' g', st.gt, 9) + row('Węglowodany', st.w, ' g', st.gw, 4) +
+    row('kcal', st.k, '', st.gk, 0, st.s('k')) + row('Białko', st.b, ' g', st.gb, 4, st.s('b')) + row('Tłuszcz', st.t, ' g', st.gt, 9, st.s('t')) + row('Węglowodany', st.w, ' g', st.gw, 4, st.s('w')) +
     `</tbody></table>` +
-    kvs(kv('Razem', k0(st.k), `${celTxt(k0(st.gk))} (${sgn(st.k - st.gk)})`) +
+    kvs(kv('Razem', k0(st.k), `${celTxt(k0(st.gk), st.s('k'))} (${sgn(st.k - st.gk)})`) +
       kv('Wydatek', k0(st.burn), burnSrc(st.nw, n)) +
       kv('Bilans', sgn(bal), `≈ ${kgTxt(bal / 7700)} kg${st.today ? ` · dziś ${sgn(st.tb)} (trwa)` : ''}`)) + `</section>`;
 }
@@ -1622,12 +1655,13 @@ function weighRowHTML(d, date) {
 }
 function daySumHTML(d, date) {
   const g = goalOf(d, date), e = eatenOf(d), bal = e.k - g.burn, act = T(d.type).act, today = todayISO();
-  const row = (name, v, unit, goal, kc) => `<tr><th>${name}</th><td>${k0(v)}${unit}</td><td class="cel">${k0(goal)}${unit}</td><td>${kc ? pctE(v * kc, e.k) + '%' : ''}</td></tr>`;
+  const has = d.items.some(x => x.ok), ms = (f, gf, tol) => markDay(has, e[f], g[gf], tol, date >= today);
+  const row = (name, f, unit, kc) => `<tr><th>${name}</th><td>${k0(e[f])}${unit}</td><td>${pill(k0(g[f === 'k' ? 'kcal' : f]), ms(f, f === 'k' ? 'kcal' : f, f === 'k' ? TOL.k : TOL.g))}${unit}</td><td>${kc ? pctE(e[f] * kc, e.k) + '%' : ''}</td></tr>`;
   const pm = (x, t) => ` ${x < 0 ? '−' : '+'} ${k0(Math.abs(x))}${t ? ' ' + t : ''}`;
   const x = date > today ? bodyAt(date) : null;
   return `<section class="wsum" aria-label="Podsumowanie dnia"><h3>Podsumowanie dnia</h3>` +
     `<table class="mt"><thead><tr><th></th><th>Zjedzone</th><th>Cel</th><th>Energii</th></tr></thead><tbody>` +
-    row('kcal', e.k, '', g.kcal) + row('Białko', e.b, ' g', g.b, 4) + row('Tłuszcz', e.t, ' g', g.t, 9) + row('Węglowodany', e.w, ' g', g.w, 4) +
+    row('kcal', 'k', '') + row('Białko', 'b', ' g', 4) + row('Tłuszcz', 't', ' g', 9) + row('Węglowodany', 'w', ' g', 4) +
     `</tbody></table>` +
     kvs(kv('Cel', k0(g.kcal), `wydatek${pm(g.plus)}${g.adj ? pm(g.adj, 'korekta') : ''}${g.zone ? ` · tł. ${kgFmt(g.bf)}%` : ''}`, 1) +
       kv('Wydatek', k0(g.burn), d.burn != null ? 'z zegarka' : `domyślny: ${k0(baseAt(date))}${pm(act)} aktywność`) +
@@ -1647,12 +1681,13 @@ function dayHTML() {
   h += `<div class="dtype"><label for="dtype">Rodzaj dnia</label><select id="dtype">` +
     Object.keys(TYPES).map(k => `<option value="${k}" ${k === d.type ? 'selected' : ''}>${esc(TYPES[k].n)} · ${k0(goalOf({ type: k, burn: d.burn }, date).kcal)}</option>`).join('') + `</select></div>`;
   h += weighRowHTML(d, date);
-  const left = ty.kcal - eaten.k;
+  const left = ty.kcal - eaten.k, has = d.items.some(x => x.ok), live = date >= today;
+  const sk = markDay(has, eaten.k, ty.kcal, TOL.k, live), sb = markDay(has, eaten.b, ty.b, TOL.g, live);
   const pending = d.items.some(e => !e.ok);
   h += `<section class="sum" aria-label="Podsumowanie dnia">` +
-    `<div class="big"><span><b>${k0(eaten.k)}</b> / <span class="cel">${k0(ty.kcal)}</span> kcal</span><span>${left >= 0 ? 'zostało ' + k0(left) : `<em class="over">+${k0(-left)} ponad cel</em>`}</span></div>` +
-    `<div class="bar"><i class="${eaten.k > ty.kcal * 1.05 ? 'over' : ''}" style="width:${pct(eaten.k, ty.kcal)}%"></i></div>` +
-    `<div class="big sm"><span>Białko <b>${g0(eaten.b)}</b> / <span class="cel">${g0(ty.b)}</span> g</span><span>T ${g0(eaten.t)} g · W ${g0(eaten.w)} g</span></div>` +
+    `<div class="big"><span><b>${k0(eaten.k)}</b> / ${pill(k0(ty.kcal), sk)} kcal</span><span>${left >= 0 ? (sk === 'lo' ? `<em class="over c-lo">brakło ${k0(left)}</em>` : 'zostało ' + k0(left)) : `<em class="over${cls(sk)}">+${k0(-left)} ponad cel</em>`}</span></div>` +
+    `<div class="bar"><i class="${cls(sk).trim()}" style="width:${pct(eaten.k, ty.kcal)}%"></i></div>` +
+    `<div class="big sm"><span>Białko <b>${g0(eaten.b)}</b> / ${pill(g0(ty.b), sb)} g</span><span>T ${g0(eaten.t)} g · W ${g0(eaten.w)} g</span></div>` +
     `<div class="bar pr"><i style="width:${pct(eaten.b, ty.b)}%"></i></div>` +
     (pending ? `<div class="plan"><span>Z resztą planu: ~${k0(all.k)} kcal · ${g0(all.b)} B</span>` +
       `<span class="plan-act"><button type="button" class="linkbtn" data-act="allok">✓ Wszystko zjedzone</button><button type="button" class="linkbtn rmp" data-act="rmpending">✕ Usuń niezaznaczone</button></span></div>` : '') +
@@ -1720,12 +1755,13 @@ function weekHTML() {
   for (let i = 0; i < 7; i++) dates.push(addD(ws, i));
   h += planHTML(dates, dates.map(x => addD(x, -7)));
   for (const date of dates) {
-    const d = dayOf(date), g = goalOf(d, date), e = eatenOf(d), has = d.items.some(x => x.ok);
+    const d = dayOf(date), g = goalOf(d, date), e = eatenOf(d), has = d.items.some(x => x.ok), live = date >= today;
+    const sk = markDay(has, e.k, g.kcal, TOL.k, live), sb = markDay(has, e.b, g.b, TOL.g, live);
     h += `<button type="button" class="wd${date === today ? ' today' : ''}" data-goday="${date}">` +
       `<span class="n">${DS[parseD(date).getDay()]} ${dm(date)}<small>${esc(TYPES[d.type].n)}</small></span>` +
-      `<span class="v">${has ? k0(e.k) : '—'} <small class="cel">/ ${k0(g.kcal)}</small></span>` +
-      `<span class="bar"><i class="${e.k > g.kcal * 1.05 ? 'over' : ''}" style="width:${pct(e.k, g.kcal)}%"></i></span>` +
-      `<span class="pb">${[...(has ? [`B ${g0(e.b)}<span class="cel">/${g0(g.b)}</span>`, `T ${g0(e.t)}`, `W ${g0(e.w)}`, `bilans ${sgn(e.k - g.burn)}${date === today ? ' (trwa)' : ''}`] : [date < today ? 'brak wpisów' : plusTxt(g.plus)]),
+      `<span class="v">${has ? k0(e.k) : '—'} <small>/</small> ${pill(k0(g.kcal), sk)}</span>` +
+      `<span class="bar"><i class="${cls(sk).trim()}" style="width:${pct(e.k, g.kcal)}%"></i></span>` +
+      `<span class="pb">${[...(has ? [`B ${g0(e.b)}/${pill(g0(g.b), sb)}`, `T ${g0(e.t)}`, `W ${g0(e.w)}`, `bilans ${sgn(e.k - g.burn)}${date === today ? ' (trwa)' : ''}`] : [date < today ? 'brak wpisów' : plusTxt(g.plus)]),
         d.burn != null ? `wyd. ${k0(d.burn)} zegarek` : `wyd. ~${k0(g.burn)}`, ...(d.kg ? [`${kgFmt(d.kg)} kg`] : []), ...(d.bf ? [`${kgFmt(d.bf)}%`] : [])].join(' · ')}</span></button>`;
   }
   h += statsHTML(stats(dates));
@@ -1746,7 +1782,7 @@ function planHTML(dates, prev, m) {
   let r = kv('Cel', k0(goal), `${k0(goal / n)} / dzień`, 1) +
     kv('Wydatek', k0(burn), burnSrc(nw, n)) +
     kv(plus < 0 ? 'Deficyt' : 'Nadwyżka', sgn(plus), `${sgn(plus / n)} / dzień ≈ ${kgTxt(plus / 7700)} kg`);
-  if (nd) r += kv(nr ? 'Dotąd' : 'Zjedzone', k0(de), `${celTxt(k0(dg))} (${sgn(de - dg)}) · ${nd} ${dniTxt(nd)}`);
+  if (nd) r += kv(nr ? 'Dotąd' : 'Zjedzone', k0(de), `${celTxt(k0(dg), mark(de, dg, TOL.k))} (${sgn(de - dg)}) · ${nd} ${dniTxt(nd)}`);
   if (nr && nd) {
     // różnica z minionych dni rozłożona po równo na dziś i resztę okresu — dopisek do celu każdego dnia
     const corr = (dg - de) / nr;
@@ -1793,9 +1829,9 @@ function monthHTML() {
     const cur = today >= dates[0] && today <= dates[dates.length - 1];
     h += `<button type="button" class="wd${cur ? ' today' : ''}" data-gowk="${ws}">` +
       `<span class="n">${dm(dates[0])} – ${dm(dates[dates.length - 1])}<small>${st.n ? `${st.n} ${dniTxt(st.n)}` : ''}</small></span>` +
-      `<span class="v"><small>śr.</small> ${st.n ? k0(avg) : '—'} <small class="cel">/ ${k0(goal)}</small></span>` +
-      `<span class="bar"><i class="${avg > goal * 1.05 ? 'over' : ''}" style="width:${pct(avg, goal)}%"></i></span>` +
-      `<span class="pb">${st.n ? `B ${g0(st.b / st.n)}<span class="cel">/${g0(st.gb / st.n)}</span> · T ${g0(st.t / st.n)} · W ${g0(st.w / st.n)} · bilans ${sgn(st.k - st.burn)}<br>` : ''}` +
+      `<span class="v"><small>śr.</small> ${st.n ? k0(avg) : '—'} <small>/</small> ${pill(k0(goal), st.n ? st.s('k') : '')}</span>` +
+      `<span class="bar"><i class="${st.n ? cls(st.s('k')).trim() : ''}" style="width:${pct(avg, goal)}%"></i></span>` +
+      `<span class="pb">${st.n ? `B ${g0(st.b / st.n)}/${pill(g0(st.gb / st.n), st.s('b'))} · T ${g0(st.t / st.n)} · W ${g0(st.w / st.n)} · bilans ${sgn(st.k - st.burn)}<br>` : ''}` +
       `${celTxt(k0(wg))} · wyd. ${k0(wb)}${wn ? ` (zegarek ${wn}/${dates.length})` : ''}${wk.length ? ` · ${kgFmt(wk.reduce((a, x) => a + x, 0) / wk.length)} kg` : ''}${wf.length ? ` · ${kgFmt(wf.reduce((a, x) => a + x, 0) / wf.length)}%` : ''}</span></button>`;
   }
   return h + statsHTML(stats(all));
