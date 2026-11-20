@@ -196,6 +196,13 @@ main { padding-block: 10px 120px; display: grid; gap: 8px; }
 .mt tbody td:nth-child(2) { font-weight: 700; }
 .burn { display: flex; justify-content: space-between; align-items: center; gap: 8px 12px; flex-wrap: wrap; font-size: 0.92rem; }
 .burn small { display: block; }
+.kv { display: grid; grid-template-columns: auto auto minmax(0, 1fr); column-gap: 10px; align-items: baseline; margin: 2px 0 0; font-size: 0.9rem; font-variant-numeric: tabular-nums; }
+.kv dt, .kv dd { margin: 0; padding: 6px 0; border-top: 1px solid var(--line); }
+.kv dt { color: var(--muted); font-weight: 600; white-space: nowrap; }
+.kv dd { font-weight: 700; text-align: right; white-space: nowrap; }
+.kv dd + dd { font-weight: 400; text-align: left; white-space: normal; color: var(--muted); font-size: 0.8rem; }
+.kv .gin input { min-height: 34px; }
+.cel, .kv dd.cel, .wsum .cel, .mt td.cel, .wd small.cel, .sum .big .cel { color: var(--accent); font-weight: 700; }
 
 /* Produkty */
 .addex { width: 100%; min-height: 48px; padding: 4px 8px; border: 1.5px dashed var(--line); border-radius: var(--radius); background: none; color: var(--accent); font-weight: 700; }
@@ -1548,54 +1555,60 @@ function setAdj(v) {
 }
 const p1 = x => (x >= 0.05 ? '+' : x <= -0.05 ? '−' : '') + kgFmt(Math.abs(x));
 const rateFmt = x => String(Math.round(x * 100) / 100).replace('.', ',');
+// Wiersz zestawienia: etykieta, liczba (c — cel, wyróżniony), krótki dopisek
+const kv = (l, v, n, c) => `<dt>${l}</dt><dd${c ? ' class="cel"' : ''}>${v}</dd><dd>${n || ''}</dd>`;
+const kvs = rows => rows ? `<dl class="kv">${rows}</dl>` : '';
+const celTxt = v => `<span class="cel">cel ${v}</span>`;
 // Ostatnia automatyczna zmiana z ostatnich 7 dni — informacja w podsumowaniu dnia
 function adjNote(date) {
   const L = S.settings.adj || [], e = L[L.length - 1];
   if (!e || !e.dk || e.m || date !== todayISO() || diffD(e.d, date) > 6) return '';
-  return `<p><small>Od ${dm(e.d)} korekta z wagi <b>${sgn(e.dk)} kcal / dzień</b>: tempo ${kgTxt(e.r)} kg/mies. przy celu ${kgTxt(e.g)} (4 tyg., ${e.n} ${pomTxt(e.n)}).</small></p>`;
+  return kv('Korekta', sgn(e.dk), `od ${dm(e.d)} · tempo ${kgTxt(e.r)} kg/mies., ${celTxt(kgTxt(e.g))}`);
 }
 // Tempo wagi, trend tłuszczu i korekta — w planie tygodnia (cur = tydzień z dzisiejszym dniem)
 function paceHTML(date, cur) {
   const tr = trendAt('kg', date), f = bfAt(date), g = rateAt(f), bt = trendAt('bf', date), lt = trendAt('lbm', date), k = adjK(date);
-  let s = tr ? `<p>Tempo wagi (4 tyg.): <b>${kgTxt(tr.v)} kg/mies.</b> · cel ${kgTxt(g)}${f.n ? ` przy ${kgFmt(f.bf)}% tłuszczu` : ''}</p>`
-    : `<p>Tempo wagi: za mało pomiarów — potrzeba ${ADJ.minN} w 4 tygodniach, rozłożonych na co najmniej 3 tygodnie</p>`;
-  if (bt) s += `<p>Trend (4 tyg.): tłuszcz ${p1(bt.v)} pkt / mies.${lt ? ` · beztłuszczowa ${kgTxt(lt.v)} kg/mies.` : ''}</p>`;
+  let s = kv('Tempo', tr ? kgTxt(tr.v) : '—', `kg/mies. · ${celTxt(kgTxt(g))}${tr ? '' : ` · min. ${ADJ.minN} pomiary w 3 tyg.`}`);
+  if (bt) s += kv('Trend tł.', p1(bt.v), `pkt/mies.${lt ? ` · beztł. ${kgTxt(lt.v)} kg` : ''}`);
   if (cur) {
     const nx = adjNext(), today = todayISO();
-    s += `<p><small>Korekta z wagi: ${k ? `<b>${sgn(k)} kcal / dzień</b>` : '0'}${S.settings.adjOff ? ' (automatyczna wyłączona)' : ` · następne sprawdzenie ${nx ? dm(nx > today ? nx : today) : 'po 4 pomiarach w ciągu 3 tygodni'}`}</small></p>`;
+    s += kv('Korekta', k ? sgn(k) : '0', S.settings.adjOff ? 'auto wyłączona' : `sprawdzenie ${nx ? dm(nx > today ? nx : today) : 'po 4 pomiarach'}`);
   }
   return s;
 }
 // Dopisek do nadwyżki, gdy zmienia ją % tłuszczu
 const zoneTxt = g => { const z = bfSet(); return !g.zone ? '' : g.bf >= z.hi ? `utrzymanie — tłuszcz ${kgFmt(g.bf)}%, od ${kgFmt(z.hi)}% w górę` : `${g.zone > 0 ? 'mniejsza' : 'większa'} nadwyżka — tłuszcz ${kgFmt(g.bf)}%, cel ${kgFmt(z.mid)}%`; };
 const plusTxt = p => p < 0 ? `deficyt ${k0(-p)}` : `nadwyżka +${k0(p)}`;
-// Zakończone dni z wpisami (bez dzisiejszego — dzień w trakcie zaniżałby średnie i bilans)
+// Dni z wpisami do dziś włącznie — dzisiejszy liczy się na bieżąco (zjedzone dotąd, wydatek z zegarka albo domyślny);
+// wszystko liczone przy każdym renderze, więc każda zmiana (wpis, rodzaj dnia, zegarek, waga, ustawienia) od razu jest w sumach
 function stats(dates) {
-  const today = todayISO(), st = { n: 0, nw: 0, k: 0, b: 0, t: 0, w: 0, burn: 0, gk: 0, gb: 0, gt: 0, gw: 0 };
+  const today = todayISO(), st = { n: 0, nw: 0, k: 0, b: 0, t: 0, w: 0, burn: 0, gk: 0, gb: 0, gt: 0, gw: 0, today: false, tb: 0 };
   for (const date of dates) {
-    if (date >= today) continue;
+    if (date > today) continue;
     const d = dayOf(date);
     if (!d.items.some(e => e.ok)) continue;
     const e = eatenOf(d), g = goalOf(d, date);
     st.n++; st.k += e.k; st.b += e.b; st.t += e.t; st.w += e.w;
-    st.burn += burnOf(d, date); if (d.burn != null) st.nw++;
+    st.burn += g.burn; if (d.burn != null) st.nw++;
     st.gk += g.kcal; st.gb += g.b; st.gt += g.t; st.gw += g.w;
+    if (date === today) { st.today = true; st.tb = e.k - g.burn; }
   }
   return st;
 }
-function statsHTML(st, what) {
-  if (!st.n) return `<section class="wsum"><h3>Kalorie i składniki</h3><p>Podsumowanie pojawi się po pierwszym zakończonym dniu z wpisami.</p></section>`;
+// Skąd wydatek: z zegarka albo domyślny (przewidywany z masy i rodzaju dnia)
+const burnSrc = (nw, n) => nw === n ? 'z zegarka' : nw ? `zegarek ${nw}/${n}, reszta domyślny` : 'domyślny';
+function statsHTML(st) {
+  if (!st.n) return `<section class="wsum" aria-label="Kalorie i składniki"><h3>Średnio na dzień</h3><p>Brak odhaczonych posiłków.</p></section>`;
   const n = st.n, bal = st.k - st.burn;
-  const row = (name, tot, unit, goal) => `<tr><th>${name}</th><td>${k0(tot)}${unit}</td><td>${k0(tot / n)}${unit}</td><td>${k0(goal / n)}${unit}</td></tr>`;
-  return `<section class="wsum" aria-label="Kalorie i składniki"><h3>Kalorie i składniki</h3>` +
-    `<p class="sub">${what}: ${n} ${dniTxt(n)} z wpisami (bez dzisiejszego)</p>` +
-    `<table class="mt"><thead><tr><th></th><th>Razem</th><th>Śr. / dzień</th><th>Cel / dzień</th></tr></thead><tbody>` +
-    row('kcal', st.k, '', st.gk) + row('Białko', st.b, ' g', st.gb) + row('Tłuszcz', st.t, ' g', st.gt) + row('Węglowodany', st.w, ' g', st.gw) +
+  const row = (name, v, unit, goal, kc) => `<tr><th>${name}</th><td>${k0(v / n)}${unit}</td><td class="cel">${k0(goal / n)}${unit}</td><td>${kc ? pctE(v * kc, st.k) + '%' : ''}</td></tr>`;
+  return `<section class="wsum" aria-label="Kalorie i składniki"><h3>Średnio na dzień</h3>` +
+    `<p class="sub">${n} ${dniTxt(n)} z wpisami${st.today ? ', w tym dziś' : ''}</p>` +
+    `<table class="mt"><thead><tr><th></th><th>Zjedzone</th><th>Cel</th><th>Energii</th></tr></thead><tbody>` +
+    row('kcal', st.k, '', st.gk) + row('Białko', st.b, ' g', st.gb, 4) + row('Tłuszcz', st.t, ' g', st.gt, 9) + row('Węglowodany', st.w, ' g', st.gw, 4) +
     `</tbody></table>` +
-    `<p class="sub">Energia z: białka ${pctE(st.b * 4, st.k)}% · tłuszczu ${pctE(st.t * 9, st.k)}% · węglowodanów ${pctE(st.w * 4, st.k)}%</p>` +
-    `<h3>Wydatek i bilans</h3>` +
-    `<p>Wydatek: <b>${k0(st.burn)} kcal</b> · ${k0(st.burn / n)} / dzień · ${st.nw === n ? 'wszystko z zegarka' : st.nw ? `z zegarka: ${st.nw} z ${n} dni, reszta przewidywana` : 'przewidywany (dane z zegarka wpisz w widoku dnia)'}</p>` +
-    `<p>Bilans: <b>${sgn(bal)} kcal</b> · ${sgn(bal / n)} / dzień · ≈ <b>${kgTxt(bal / 7700)} kg</b> <small>(7700 kcal ≈ 1 kg)</small></p></section>`;
+    kvs(kv('Razem', k0(st.k), `${celTxt(k0(st.gk))} (${sgn(st.k - st.gk)})`) +
+      kv('Wydatek', k0(st.burn), burnSrc(st.nw, n)) +
+      kv('Bilans', sgn(bal), `≈ ${kgTxt(bal / 7700)} kg${st.today ? ` · dziś ${sgn(st.tb)} (trwa)` : ''}`)) + `</section>`;
 }
 // Podsumowanie dnia: zjedzone vs cel, udział w energii, wydatek (przewidywany lub z zegarka) i bilans
 const kgInput = (d, date) => `<label class="gin">Waga <input data-kg="${date}" inputmode="decimal" autocomplete="off" placeholder="—" value="${d.kg ? kgFmt(d.kg) : ''}" aria-label="Waga rano w kg"> kg</label>`;
@@ -1604,23 +1617,24 @@ const bfInput = (d, date) => `<label class="gin">Tłuszcz <input data-bf="${date
 function weighRowHTML(d, date) {
   if (date > todayISO()) return '';
   const w = weightAt(date), f = bfAt(date), has = d.kg || d.bf;
-  const info = has ? `średnia 7 dni: ${kgFmt(w.kg)} kg${f.n ? ` · ${kgFmt(f.bf)}% tłuszczu` : ''}${w.n > 1 ? ` (${w.n} ${pomTxt(w.n)})` : ''}` : 'rano, po toalecie, przed jedzeniem · liczy się średnia z 7 dni';
+  const x = bodyAt(date), info = w.n ? `śr. 7 dni: ${kgFmt(w.kg)} kg${f.n ? ` · ${kgFmt(f.bf)}% · beztł. ${kgFmt(x.lbm)} kg` : ''}` : 'rano, na czczo';
   return `<div class="kgrow${!has && parseD(date).getDay() === WEIGH_DAY ? ' todo' : ''}"><span><b>Ważenie</b><small>${info}</small></span><div class="kgin">${kgInput(d, date)}${bfInput(d, date)}</div></div>`;
 }
 function daySumHTML(d, date) {
-  const g = goalOf(d, date), e = eatenOf(d), bal = e.k - g.burn, act = T(d.type).act, x = bodyAt(date), w = x.w;
-  const row = (name, v, unit, goal, kc) => `<tr><th>${name}</th><td>${k0(v)}${unit}</td><td>${k0(goal)}${unit}</td><td>${kc ? pctE(v * kc, e.k) + '%' : ''}</td></tr>`;
+  const g = goalOf(d, date), e = eatenOf(d), bal = e.k - g.burn, act = T(d.type).act, today = todayISO();
+  const row = (name, v, unit, goal, kc) => `<tr><th>${name}</th><td>${k0(v)}${unit}</td><td class="cel">${k0(goal)}${unit}</td><td>${kc ? pctE(v * kc, e.k) + '%' : ''}</td></tr>`;
+  const pm = (x, t) => ` ${x < 0 ? '−' : '+'} ${k0(Math.abs(x))}${t ? ' ' + t : ''}`;
+  const x = date > today ? bodyAt(date) : null;
   return `<section class="wsum" aria-label="Podsumowanie dnia"><h3>Podsumowanie dnia</h3>` +
     `<table class="mt"><thead><tr><th></th><th>Zjedzone</th><th>Cel</th><th>Energii</th></tr></thead><tbody>` +
     row('kcal', e.k, '', g.kcal) + row('Białko', e.b, ' g', g.b, 4) + row('Tłuszcz', e.t, ' g', g.t, 9) + row('Węglowodany', e.w, ' g', g.w, 4) +
     `</tbody></table>` +
-    `<h3>Wydatek i bilans</h3>` +
-    `<div class="burn"><span>Przewidywany: <b>${k0(predBurn(d.type, date))} kcal</b><small>bez aktywności ${k0(baseAt(date))} ${act < 0 ? '−' : '+'} aktywność ${k0(Math.abs(act))} (${esc(TYPES[d.type].n.toLowerCase())})</small></span>` +
-    `<label class="gin">Z zegarka <input data-burn="${date}" inputmode="numeric" autocomplete="off" placeholder="—" value="${d.burn != null ? d.burn : ''}" aria-label="Wydatek z zegarka w kcal"> kcal</label></div>` +
-    `<div class="burn"><span>Masa: <b>${kgFmt(w.kg)} kg</b>${x.f.n ? ` · tłuszcz <b>${kgFmt(x.f.bf)}%</b>` : ''}<small>${kgSrc(w)}${x.f.n ? ` · beztłuszczowa ${kgFmt(x.lbm)} kg` : ''}</small></span></div>` +
-    `<p>Cel jedzenia: <b>${k0(g.kcal)} kcal</b> <small>= wydatek ${k0(g.burn)}${d.burn != null ? ' z zegarka' : ''} ${g.plus < 0 ? '−' : '+'} ${k0(Math.abs(g.plus))} (${g.zone ? zoneTxt(g) : plusTxt(g.plus).split(' ')[0]})${g.adj ? ` ${g.adj < 0 ? '−' : '+'} ${k0(Math.abs(g.adj))} (korekta z wagi)` : ''}</small></p>` +
-    adjNote(date) +
-    `<p>Bilans: <b>${sgn(bal)} kcal</b> <small>(zjedzone ${k0(e.k)} − wydatek ${k0(g.burn)}${d.burn != null ? ' z zegarka' : ' przewidywany'}${date === todayISO() ? ' · dzień trwa' : ''})</small></p></section>`;
+    kvs(kv('Cel', k0(g.kcal), `wydatek${pm(g.plus)}${g.adj ? pm(g.adj, 'korekta') : ''}${g.zone ? ` · tł. ${kgFmt(g.bf)}%` : ''}`, 1) +
+      kv('Wydatek', k0(g.burn), d.burn != null ? 'z zegarka' : `domyślny: ${k0(baseAt(date))}${pm(act)} aktywność`) +
+      `<dt>Zegarek</dt><dd><label class="gin"><input data-burn="${date}" inputmode="numeric" autocomplete="off" placeholder="—" value="${d.burn != null ? d.burn : ''}" aria-label="Wydatek z zegarka w kcal"></label></dd><dd>kcal · puste = domyślny</dd>` +
+      kv('Bilans', sgn(bal), date === today ? 'dzień trwa' : '') +
+      (x ? kv('Masa', `${kgFmt(x.kg)} kg`, `${x.f.n ? kgFmt(x.f.bf) + '% · ' : ''}stan na dziś`) : '') +
+      adjNote(date)) + `</section>`;
 }
 
 function dayHTML() {
@@ -1636,9 +1650,9 @@ function dayHTML() {
   const left = ty.kcal - eaten.k;
   const pending = d.items.some(e => !e.ok);
   h += `<section class="sum" aria-label="Podsumowanie dnia">` +
-    `<div class="big"><span><b>${k0(eaten.k)}</b> / ${k0(ty.kcal)} kcal</span><span>${left >= 0 ? 'zostało ' + k0(left) : `<em class="over">+${k0(-left)} ponad cel</em>`}</span></div>` +
+    `<div class="big"><span><b>${k0(eaten.k)}</b> / <span class="cel">${k0(ty.kcal)}</span> kcal</span><span>${left >= 0 ? 'zostało ' + k0(left) : `<em class="over">+${k0(-left)} ponad cel</em>`}</span></div>` +
     `<div class="bar"><i class="${eaten.k > ty.kcal * 1.05 ? 'over' : ''}" style="width:${pct(eaten.k, ty.kcal)}%"></i></div>` +
-    `<div class="big sm"><span>Białko <b>${g0(eaten.b)}</b> / ${g0(ty.b)} g</span><span>T ${g0(eaten.t)} g · W ${g0(eaten.w)} g</span></div>` +
+    `<div class="big sm"><span>Białko <b>${g0(eaten.b)}</b> / <span class="cel">${g0(ty.b)}</span> g</span><span>T ${g0(eaten.t)} g · W ${g0(eaten.w)} g</span></div>` +
     `<div class="bar pr"><i style="width:${pct(eaten.b, ty.b)}%"></i></div>` +
     (pending ? `<div class="plan"><span>Z resztą planu: ~${k0(all.k)} kcal · ${g0(all.b)} B</span>` +
       `<span class="plan-act"><button type="button" class="linkbtn" data-act="allok">✓ Wszystko zjedzone</button><button type="button" class="linkbtn rmp" data-act="rmpending">✕ Usuń niezaznaczone</button></span></div>` : '') +
@@ -1704,23 +1718,23 @@ function weekHTML() {
     `<button type="button" class="navb" data-week="1" aria-label="Następny tydzień">›</button></div>`;
   const dates = [];
   for (let i = 0; i < 7; i++) dates.push(addD(ws, i));
-  h += weekPlanHTML(dates);
+  h += planHTML(dates, dates.map(x => addD(x, -7)));
   for (const date of dates) {
     const d = dayOf(date), g = goalOf(d, date), e = eatenOf(d), has = d.items.some(x => x.ok);
     h += `<button type="button" class="wd${date === today ? ' today' : ''}" data-goday="${date}">` +
       `<span class="n">${DS[parseD(date).getDay()]} ${dm(date)}<small>${esc(TYPES[d.type].n)}</small></span>` +
-      `<span class="v">${has ? k0(e.k) : '—'} <small>/ ${k0(g.kcal)}</small></span>` +
+      `<span class="v">${has ? k0(e.k) : '—'} <small class="cel">/ ${k0(g.kcal)}</small></span>` +
       `<span class="bar"><i class="${e.k > g.kcal * 1.05 ? 'over' : ''}" style="width:${pct(e.k, g.kcal)}%"></i></span>` +
-      `<span class="pb">${has ? `Białko ${g0(e.b)} / ${g0(g.b)} g · T ${g0(e.t)} · W ${g0(e.w)}<br>` : date < today ? 'brak wpisów<br>' : ''}` +
-      `Wydatek ${d.burn != null ? k0(d.burn) + ' z zegarka' : '~' + k0(g.burn)}` +
-      `${has ? ` · bilans ${sgn(e.k - g.burn)}${date === today ? ' (dzień trwa)' : ''}` : ` · ${plusTxt(g.plus)}`}${d.kg ? ` · waga ${kgFmt(d.kg)}` : ''}${d.bf ? ` · ${kgFmt(d.bf)}%` : ''}</span></button>`;
+      `<span class="pb">${[...(has ? [`B ${g0(e.b)}<span class="cel">/${g0(g.b)}</span>`, `T ${g0(e.t)}`, `W ${g0(e.w)}`, `bilans ${sgn(e.k - g.burn)}${date === today ? ' (trwa)' : ''}`] : [date < today ? 'brak wpisów' : plusTxt(g.plus)]),
+        d.burn != null ? `wyd. ${k0(d.burn)} zegarek` : `wyd. ~${k0(g.burn)}`, ...(d.kg ? [`${kgFmt(d.kg)} kg`] : []), ...(d.bf ? [`${kgFmt(d.bf)}%`] : [])].join(' · ')}</span></button>`;
   }
-  h += statsHTML(stats(dates), 'Tydzień');
+  h += statsHTML(stats(dates));
   return h;
 }
-// Plan tygodnia: suma celów dni (wydatek z zegarka albo przewidywany + nadwyżka) — zmienia się z rodzajem dnia i wpisem z zegarka
-function weekPlanHTML(dates) {
-  const today = todayISO(), n = dates.length;
+// Plan tygodnia albo miesiąca (m): suma celów wszystkich dni = wydatek (z zegarka, a bez wpisu domyślny) + nadwyżka;
+// liczony przy każdym renderze — zmienia się z rodzajem dnia, zegarkiem, wagą, korektą i ustawieniami; prev = dni okresu wcześniej
+function planHTML(dates, prev, m) {
+  const today = todayISO(), n = dates.length, P = m ? 'miesiąca' : 'tygodnia', PW = m ? 'mies.' : 'tydz.';
   let goal = 0, burn = 0, nw = 0, dg = 0, de = 0, nd = 0, rg = 0, nr = 0, et = 0;
   for (const date of dates) {
     const d = dayOf(date), g = goalOf(d, date);
@@ -1729,28 +1743,28 @@ function weekPlanHTML(dates) {
     else if (d.items.some(e => e.ok)) { dg += g.kcal; de += eatenOf(d).k; nd++; }
   }
   const plus = goal - burn;
-  let h = `<section class="wsum" aria-label="Plan tygodnia"><h3>Plan tygodnia</h3>` +
-    `<p>Cel: <b>${k0(goal)} kcal</b> <small>= wydatek ${k0(burn)} ${plus < 0 ? '−' : '+'} ${k0(Math.abs(plus))}</small></p>` +
-    `<p>Wydatek: ${nw === n ? 'cały z zegarka' : nw ? `z zegarka ${nw} z ${n} dni, reszta przewidywana` : 'przewidywany'} · ${plus < 0 ? 'deficyt' : 'nadwyżka'} ${sgn(plus / n)} / dzień ≈ ${kgTxt(plus / 7700)} kg</p>`;
+  let r = kv('Cel', k0(goal), `${k0(goal / n)} / dzień`, 1) +
+    kv('Wydatek', k0(burn), burnSrc(nw, n)) +
+    kv(plus < 0 ? 'Deficyt' : 'Nadwyżka', sgn(plus), `${sgn(plus / n)} / dzień ≈ ${kgTxt(plus / 7700)} kg`);
+  if (nd) r += kv(nr ? 'Dotąd' : 'Zjedzone', k0(de), `${celTxt(k0(dg))} (${sgn(de - dg)}) · ${nd} ${dniTxt(nd)}`);
+  if (nr && nd) {
+    // różnica z minionych dni rozłożona po równo na dziś i resztę okresu — dopisek do celu każdego dnia
+    const corr = (dg - de) / nr;
+    r += nr === 1 ? kv('Cel dziś', `~${k0(Math.max(0, rg + corr))}`, `zamiast ${k0(rg)}${et ? ` · zostało ~${k0(Math.max(0, rg + corr - et))}` : ''}`, 1)
+      : kv('Na resztę', sgn(corr), `/ dzień do celu · dziś i ${nr - 1} ${dniTxt(nr - 1)}`, 1);
+  }
   const avg = a => a.reduce((x, y) => x + y, 0) / a.length;
   const ms = (ds, f) => ds.map(x => S.days[x] && S.days[x][f]).filter(Boolean);
-  const wk = ms(dates, 'kg'), pw = ms(dates.map(x => addD(x, -7)), 'kg'), wf = ms(dates, 'bf'), pf = ms(dates.map(x => addD(x, -7)), 'bf');
+  const wk = ms(dates, 'kg'), pw = ms(prev, 'kg'), wf = ms(dates, 'bf'), pf = ms(prev, 'bf');
   const wkd = dates.filter(x => S.days[x] && S.days[x].kg);
   const lean = (k, f) => avg(k) * (1 - avg(f) / 100);
-  if (wk.length) h += `<p>Masa: <b>${kgFmt(avg(wk))} kg</b> (${wk.length === 1 ? `pomiar ${dm(wkd[0])}` : `śr. z ${wk.length} pomiarów`})${pw.length ? ` · tydzień wcześniej ${kgFmt(avg(pw))} (${kgTxt(avg(wk) - avg(pw))} kg)` : ''}</p>` +
-    (wf.length ? `<p>Tłuszcz: <b>${kgFmt(avg(wf))}%</b>${pf.length ? ` (tydzień wcześniej ${kgFmt(avg(pf))}%)` : ''} · beztłuszczowa ${kgFmt(lean(wk, wf))} kg${pf.length && pw.length ? ` (${kgTxt(lean(wk, wf) - lean(pw, pf))} kg)` : ''}</p>` : '');
-  else { const w = weightAt(dates[n - 1]); h += `<p>Masa: ${w.n ? `${kgFmt(w.kg)} kg (ostatni pomiar ${dm(w.last)})` : 'brak pomiarów'} · ważenie: pole na górze dnia</p>`; }
+  if (wk.length) r += kv('Masa', `${kgFmt(avg(wk))} kg`, `${pw.length ? `${kgTxt(avg(wk) - avg(pw))} vs ${PW} wcz.` : wk.length === 1 ? `pomiar ${dm(wkd[0])}` : `śr. ${wk.length} pomiarów`}`) +
+    (wf.length ? kv('Tłuszcz', `${kgFmt(avg(wf))}%`, `${pf.length ? p1(avg(wf) - avg(pf)) + ' · ' : ''}beztł. ${kgFmt(lean(wk, wf))} kg${pf.length && pw.length ? ` (${kgTxt(lean(wk, wf) - lean(pw, pf))})` : ''}`) : '');
+  else { const w = weightAt(dates[n - 1]); r += kv('Masa', w.n ? `${kgFmt(w.kg)} kg` : '—', w.n ? `ostatni pomiar ${dm(w.last)}` : 'brak pomiarów'); }
   const zd = dates[n - 1] > today ? today : dates[n - 1], zg = goalOf({ type: 'sil' }, zd);
-  if (zd >= dates[0]) h += paceHTML(zd, dates.includes(today));
-  if (zg.zone) { const z = bfSet(); h += `<p><small>Tłuszcz ${kgFmt(zg.bf)}% (średnia 7 dni; cel ${kgFmt(z.mid)}%, zakres ${kgFmt(z.lo)}–${kgFmt(z.hi)}%): nadwyżka w dzień siłowy ${sgn(zg.plus)} zamiast ${sgn(zg.plan)} kcal${zg.bf >= z.hi ? ' — utrzymanie, aż średnia spadnie poniżej ' + kgFmt(z.hi) + '%' : ''}.</small></p>`; }
-  if (nd) h += `<p>${nr ? 'Dotąd' : 'Zjedzone'} (${nd} ${dniTxt(nd)} z wpisami): <b>${k0(de)}</b> z planu ${k0(dg)} kcal <small>(${sgn(de - dg)})</small></p>`;
-  if (nr && nd) {
-    // różnica z minionych dni rozłożona po równo na dziś i resztę tygodnia — dopisek do celu każdego dnia
-    const corr = (dg - de) / nr;
-    h += nr === 1 ? `<p>Żeby wyjść na cel tygodnia: <b>dziś ~${k0(Math.max(0, rg + corr))} kcal</b> zamiast ${k0(rg)}${et ? ` <small>(zostało ~${k0(Math.max(0, rg + corr - et))})</small>` : ''}</p>`
-      : `<p>Żeby wyjść na cel tygodnia: <b>${sgn(corr)} kcal / dzień</b> do celu dnia — dziś i przez kolejne ${nr - 1} ${dniTxt(nr - 1)}</p>`;
-  }
-  return h + `</section>`;
+  if (zd >= dates[0]) r += paceHTML(zd, dates.includes(today));
+  if (zg.zone) { const z = bfSet(); r += kv('Siłowy', sgn(zg.plus), `nadwyżka (zamiast ${sgn(zg.plan)}) · tł. ${kgFmt(zg.bf)}%, ${celTxt(kgFmt(z.mid) + '%')}`); }
+  return `<section class="wsum" aria-label="Plan ${P}"><h3>Plan ${P}</h3>${kvs(r)}</section>`;
 }
 
 /* ---------- Miesiąc: tygodnie (pon–nd) w obrębie miesiąca ---------- */
@@ -1763,22 +1777,28 @@ function monthHTML() {
   let h = `<div class="dnav"><button type="button" class="navb" data-month="-1" aria-label="Poprzedni miesiąc">‹</button>` +
     `<div class="dt"><b>${MN[mo - 1]} ${y}</b><span>${m === mNow ? 'ten miesiąc' : `<button type="button" class="linkbtn" data-act="thismonth">wróć do tego miesiąca</button>`}</span></div>` +
     `<button type="button" class="navb" data-month="1" aria-label="Następny miesiąc">›</button></div>`;
-  const all = [];
+  const all = [], prev = [];
+  for (let x = first; x <= last; x = addD(x, 1)) all.push(x);
+  for (let x = addD(first, -1); x.slice(0, 7) === addD(first, -1).slice(0, 7); x = addD(x, -1)) prev.push(x);
+  h += planHTML(all, prev, true);
   for (let ws = weekStart(first); ws <= last; ws = addD(ws, 7)) {
     const dates = [];
     for (let i = 0; i < 7; i++) { const x = addD(ws, i); if (x >= first && x <= last) dates.push(x); }
-    all.push(...dates);
     const st = stats(dates);
-    const goal = st.n ? st.gk / st.n : dates.reduce((a, x) => a + goalOf(dayOf(x), x).kcal, 0) / dates.length;
+    // cel i wydatek wszystkich dni tygodnia (z zegarka albo domyślny) — na bieżąco
+    let wg = 0, wb = 0, wn = 0;
+    for (const x of dates) { const d = dayOf(x), g = goalOf(d, x); wg += g.kcal; wb += g.burn; if (d.burn != null) wn++; }
+    const goal = st.n ? st.gk / st.n : wg / dates.length;
     const avg = st.n ? st.k / st.n : 0, wk = dates.map(x => S.days[x] && S.days[x].kg).filter(Boolean), wf = dates.map(x => S.days[x] && S.days[x].bf).filter(Boolean);
     const cur = today >= dates[0] && today <= dates[dates.length - 1];
     h += `<button type="button" class="wd${cur ? ' today' : ''}" data-gowk="${ws}">` +
-      `<span class="n">${dm(dates[0])} – ${dm(dates[dates.length - 1])}<small>${st.n ? `${st.n} ${dniTxt(st.n)} z wpisami` : 'brak zakończonych dni'}</small></span>` +
-      `<span class="v">${st.n ? k0(avg) : '—'} <small>/ ${k0(goal)} śr.</small></span>` +
+      `<span class="n">${dm(dates[0])} – ${dm(dates[dates.length - 1])}<small>${st.n ? `${st.n} ${dniTxt(st.n)}` : ''}</small></span>` +
+      `<span class="v"><small>śr.</small> ${st.n ? k0(avg) : '—'} <small class="cel">/ ${k0(goal)}</small></span>` +
       `<span class="bar"><i class="${avg > goal * 1.05 ? 'over' : ''}" style="width:${pct(avg, goal)}%"></i></span>` +
-      `<span class="pb">${st.n ? `Białko śr. ${g0(st.b / st.n)} g · T ${g0(st.t / st.n)} · W ${g0(st.w / st.n)}<br>Bilans ${sgn(st.k - st.burn)} kcal · ${sgn((st.k - st.burn) / st.n)} / dzień` : 'średnie po zakończonych dniach'}${wk.length ? `<br>Masa ${wk.length > 1 ? 'śr. ' : ''}${kgFmt(wk.reduce((a, x) => a + x, 0) / wk.length)} kg` : ''}${wf.length ? ` · tłuszcz ${kgFmt(wf.reduce((a, x) => a + x, 0) / wf.length)}%` : ''}</span></button>`;
+      `<span class="pb">${st.n ? `B ${g0(st.b / st.n)}<span class="cel">/${g0(st.gb / st.n)}</span> · T ${g0(st.t / st.n)} · W ${g0(st.w / st.n)} · bilans ${sgn(st.k - st.burn)}<br>` : ''}` +
+      `${celTxt(k0(wg))} · wyd. ${k0(wb)}${wn ? ` (zegarek ${wn}/${dates.length})` : ''}${wk.length ? ` · ${kgFmt(wk.reduce((a, x) => a + x, 0) / wk.length)} kg` : ''}${wf.length ? ` · ${kgFmt(wf.reduce((a, x) => a + x, 0) / wf.length)}%` : ''}</span></button>`;
   }
-  return h + statsHTML(stats(all), 'Miesiąc');
+  return h + statsHTML(stats(all));
 }
 
 // Jednostka · przepis w pierwszej linii, skład pod spodem — zawijany, nieucinany
