@@ -1075,8 +1075,7 @@ const RECIPES = {
 for (const f of BASE_FOODS) if (RECIPES[f.id]) f.r = RECIPES[f.id].join('\n');
 const BASEM = Object.fromEntries(BASE_FOODS.map(f => [f.id, f]));
 // Składniki posiłków z planu: [produkt, gramy (produkt bez wagi jednostki — liczba jednostek)]; L = co inaczej w LIGHT (gramy, 0 = bez);
-// por = na ile porcji jest lista. Wartości z planu zostają: różnica między planem a sumą składników (przyprawy, warzywa „na oko”,
-// zaokrąglenia) to „rest” — zmiana składnika dolicza albo odejmuje tylko swoją różnicę.
+// por = na ile porcji jest lista. Posiłek = dokładnie suma składników (bez wyrównania do liczb z dokumentu planu).
 const ING = {
   S1: { p: [['P11', 20], ['SK1', 5], ['SK2', 5], ['P1', 120]] },
   S2: { p: [['P11', 20], ['SK1', 5], ['SK2', 5]] },
@@ -1128,24 +1127,26 @@ function ingSum(rows) {
   for (const r of rows || []) for (const m of MAC) s[m] += (r[m] || 0) * (r.q || 1);
   return s;
 }
-// Wartości na porcję: suma składników / liczba porcji + wyrównanie do planu
-function ingVal(rows, por, rest) {
+// Wartości na porcję: suma składników / liczba porcji (stare „wyrównanie do planu” — rest — jest pomijane)
+function ingVal(rows, por) {
   const s = ingSum(rows), p = por || 1;
-  return Object.fromEntries(MAC.map(m => [m, Math.max(0, r1(s[m] / p + ((rest && rest[m]) || 0)))]));
+  return Object.fromEntries(MAC.map(m => [m, Math.max(0, r1(s[m] / p))]));
 }
-const restOf = (x, rows, por) => { const s = ingSum(rows); return Object.fromEntries(MAC.map(m => [m, R3(x[m] - s[m] / (por || 1))])); };
+const restOf = () => null;
 for (const [id, x] of Object.entries(ING)) {
   const f = BASEM[id];
   if (!f) continue;
   f.ing = x.p.map(([i, a]) => ingRow(BASEM[i], a));
   if (x.por) f.por = x.por;
-  f.rest = restOf(f, f.ing, x.por);
+  f.rest = null;
+  Object.assign(f, ingVal(f.ing, x.por));
   if (x.L && f.L) {
     const L = x.L, rows = [];
     for (const [i, a] of x.p) { const v = i in L ? L[i] : a; if (v > 0) rows.push(ingRow(BASEM[i], v)); }
     for (const [i, a] of Object.entries(L)) if (a > 0 && !x.p.some(r => r[0] === i)) rows.push(ingRow(BASEM[i], a));
     f.L.ing = rows;
-    f.L.rest = restOf(f.L, rows, x.por);
+    f.L.rest = null;
+    Object.assign(f.L, ingVal(rows, x.por));
   }
 }
 
@@ -1327,6 +1328,11 @@ function buildFoods() {
       if (rl) { f.L = { ...f.L, ing: rl, ...ingVal(rl, f.por, f.L.rest) }; changed = true; }
     }
     if (!changed) break;
+  }
+  // posiłek ze składnikami = zawsze suma składników (też zapisane wcześniej zmiany z wyrównaniem)
+  for (const f of FOODS) {
+    if (f.ing) { Object.assign(f, ingVal(f.ing, f.por)); delete f.rest; }
+    if (f.L && f.L.ing) { f.L = { ...f.L, ...ingVal(f.L.ing, f.por) }; delete f.L.rest; }
   }
 }
 // Wiersze składników z obecnymi wartościami produktów (null — bez zmian); przy zmianie wagi jednostki zostają te same gramy
@@ -2210,7 +2216,7 @@ function cmRowHTML(r, i) {
     `<button type="button" class="x" data-cmrm="${i}" aria-label="Usuń składnik: ${lbl}">✕</button></div></div>`;
 }
 function cmRender() {
-  const R = CM.rows, rs = CM.rest, por = CM.por || 1;
+  const R = CM.rows, rs = null, por = CM.por || 1; // bez wyrównania — posiłek = suma składników
   let h = R.length ? R.map(cmRowHTML).join('') : `<p class="pk-empty">Brak składników — wyszukaj wyżej i dodaj.</p>`;
   if (rs && R.length && MAC.some(m => Math.round(rs[m]))) {
     h += `<div class="cm-rest"><span>Wyrównanie do wartości z planu<small>przyprawy, warzywa „na oko”, zaokrąglenia</small></span><span class="cm-k">${sgn(rs.k)} kcal · ${sgn(rs.b)} B</span></div>`;
@@ -2627,7 +2633,7 @@ document.addEventListener('visibilitychange', () => { if (!document.hidden && S.
 // v10: wydatek z ustawień (burn) zamieniony na aktywność ponad „bez aktywności” (act = burn − 2015)
 function migrate() {
   const mv = S.settings.mv || 0;
-  if (mv >= 12) return;
+  if (mv >= 13) return;
   const had = Object.keys(S.days).length || Object.keys(S.settings.targets).length || S.foods.removed.length || S.foods.added.length || S.foods.gone.length; // świeża instalacja — nic nie zapisuj
   for (const k of Object.keys(S.settings.targets)) {
     const o = S.settings.targets[k] || {};
@@ -2647,7 +2653,8 @@ function migrate() {
     for (const f of S.foods.added) if (f.ing && f.c === 'moje') { f.c = 'posilki'; n++; }
     if (n) buildFoods();
   }
-  S.settings.mv = 12;
+  if (mv < 13) refreshPlan(); // v27: posiłki = suma składników — nieodhaczone pozycje planu od dziś biorą nowe wartości
+  S.settings.mv = 13;
   if (had) persist();
 }
 migrate();
