@@ -126,7 +126,10 @@ main { padding-block: 10px 120px; display: grid; gap: 8px; }
 .sl-title { border: 0; background: none; padding: 4px 0; font: inherit; text-transform: inherit; letter-spacing: inherit; color: inherit; text-align: left; display: flex; align-items: baseline; gap: 8px; min-height: 36px; }
 .sl-title::after { content: "✎"; font-family: var(--font-body); font-size: 0.85rem; color: var(--muted); opacity: 0.6; text-transform: none; }
 .tm { font-family: var(--font-body); font-size: 0.78rem; color: var(--muted); font-weight: 600; letter-spacing: 0; font-variant-numeric: tabular-nums; }
-.sk { color: var(--muted); font-size: 0.85rem; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.sk { color: var(--muted); font-size: 0.85rem; font-variant-numeric: tabular-nums; white-space: nowrap; display: flex; flex-direction: column; align-items: flex-end; line-height: 1.2; }
+.sk b { color: var(--ink); font-weight: 600; }
+.sk small { font-size: 0.74rem; }
+.sk.pl b { color: var(--muted); font-weight: 500; }
 .addb { flex: none; width: 36px; height: 36px; border-radius: 999px; border: 1px solid var(--line); background: var(--bg); font-size: 1.35rem; line-height: 1; color: var(--accent); font-weight: 600; }
 .it { display: grid; grid-template-columns: 40px minmax(0, 1fr) auto; align-items: start; border-top: 1px solid var(--line); }
 .x { width: 34px; height: 44px; margin: 2px -6px 0 2px; border: 0; background: none; color: var(--muted); font-size: 0.95rem; line-height: 1; border-radius: 8px; }
@@ -1707,9 +1710,10 @@ function dayHTML() {
     `</section>`;
   for (const s of daySlots(d)) {
     const its = d.items.filter(e => e.s === s), sl = slotInfo(s);
-    const se = sumOf(its.filter(e => e.ok));
+    // zestawienie posiłku: zjedzone (odhaczone), a gdy nic nie odhaczone — plan (~, wyszarzony)
+    const eat = its.filter(e => e.ok), se = sumOf(eat.length ? eat : its), sp = !eat.length;
     h += `<section class="slot" aria-label="${esc(sl.n)}"><div class="slot-h"><h3><button type="button" class="sl-title" data-sedit="${s}" aria-label="Zmień posiłek: ${esc(sl.n)}">${sl.t ? `<span class="tm">${sl.t}</span>` : ''}${esc(sl.n)}</button></h3>` +
-      `<span class="sk">${se.k ? k0(se.k) + ' kcal' : ''}</span>` +
+      (its.length ? `<span class="sk${sp ? ' pl' : ''}"><b>${sp ? '~' : ''}${k0(se.k)} kcal</b><small>B ${g0(se.b)} · T ${g0(se.t)} · W ${g0(se.w)}</small></span>` : '') +
       `<button type="button" class="addb" data-add="${s}" aria-label="Dodaj: ${esc(sl.n)}">+</button></div>`;
     for (const e of its) h += itemHTML(e);
     if (!its.length) h += `<button type="button" class="emptyb" data-add="${s}">${s === 'kol' ? 'Wybierz kolację' : s === 'jog' ? '+ Jogurt z owsem lub inny' : '+ Dodaj'}</button>`;

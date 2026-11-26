@@ -1,5 +1,5 @@
 // Offline: pliki aplikacji w pamięci podręcznej. Strona główna — najpierw sieć (żeby dotarły aktualizacje), bez sieci z pamięci.
-const CACHE = 'silownia-v10';
+const CACHE = 'silownia-v11';
 const FILES = ['./', './index.html', './manifest.webmanifest', './icon-180.png', './icon-192.png', './icon-512.png'];
 // Tylko pliki z tego folderu — podfoldery (np. jedzenie/) mają własny service worker
 const SCOPE = new URL(self.registration.scope).pathname;

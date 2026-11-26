@@ -499,8 +499,9 @@ function statusOf(ex) {
   if (loaded && reps.some(r => r < lo)) return { k: 'low', t: `Poniżej ${lo} ${unitWord(ex)} — zostań przy tym ciężarze` };
   return { k: 'reps', t: `Dokładaj ${ex.unit === 's' ? 'sekundy' : 'powtórzenia'} — cel ${Array(ex.sets).fill(hi).join('/')}${ex.unit === 's' ? ' s' : ''}` };
 }
-/* ---------- Kolejność: najczęściej i ostatnio wykonywane u góry ---------- */
-// Wynik = suma wpisów, gdzie wpis sprzed 2 tygodni waży połowę (dzisiejszy 1, sprzed 4 tyg. ¼).
+/* ---------- Kolejność: ostatnio wykonywane u góry ---------- */
+// Według daty ostatniego zapisu (najnowsze pierwsze); ten sam dzień — częściej robione wyżej
+// (wynik = suma wpisów, wpis sprzed 2 tygodni waży połowę); nigdy niezapisane — na końcu, w kolejności planu.
 // Bez zapisu od 6 tygodni (albo nigdy) → zwinięte „Pozostałe” na dole.
 const HALF_LIFE = 14, ACTIVE_DAYS = 42;
 const ageDays = d => Math.max(0, Math.round((new Date(iso(new Date()) + 'T00:00:00') - new Date(d + 'T00:00:00')) / 86400000));
@@ -508,13 +509,14 @@ function usage(ex) {
   const H = (S.lifts[ex.id] && S.lifts[ex.id].history) || [];
   let score = 0;
   for (const e of H) score += Math.pow(0.5, ageDays(e.d) / HALF_LIFE);
-  let age = H.length ? ageDays(H[H.length - 1].d) : Infinity;
+  const last = H.length ? ageDays(H[H.length - 1].d) : Infinity;
+  let age = last;
   if (ex.added) age = Math.min(age, ageDays(ex.added)); // nowe lub przywrócone ćwiczenie: 6 tygodni na liście głównej
-  return { ex, score, age };
+  return { ex, score, age, last };
 }
 function arrange(partId) {
   const list = EX.filter(e => e.part === partId).map(usage);
-  list.sort((a, b) => b.score - a.score || ORDER[a.ex.id] - ORDER[b.ex.id]);
+  list.sort((a, b) => (a.last === b.last ? 0 : a.last < b.last ? -1 : 1) || b.score - a.score || ORDER[a.ex.id] - ORDER[b.ex.id]);
   let main = list.filter(u => u.age <= ACTIVE_DAYS);
   if (!main.length) main = list.filter(u => u.age < Infinity); // po dłuższej przerwie: wszystko, co kiedykolwiek zapisane
   if (!main.length) main = list;                                 // nowa zakładka bez zapisów: cały plan
@@ -689,7 +691,7 @@ function settingsHTML() {
     `<div class="btnrow"><button type="button" class="btn2" data-act="export">Zapisz kopię</button><button type="button" class="btn2" data-act="import">Wczytaj kopię</button></div>` +
     `<p id="io-msg"></p>` +
     `<p>Progresja podwójna: gdy wszystkie serie dojdą do górnej granicy, aplikacja podpowie nowy ciężar (duże boje dolne +5 kg, górne +2,5 kg, hantle i izolacje +1–2 kg). W ćwiczeniach z masą ciała zamiast ciężaru podnosisz cel (sekundy lub powtórzenia).</p>` +
-    `<p>Kolejność: u góry ćwiczenia robione najczęściej i ostatnio (liczy się przy wejściu na zakładkę). Te bez zapisu od 6 tygodni są zwinięte w „Pozostałe” na dole — wystarczy jeden zapis, żeby wróciły na listę.</p>` +
+    `<p>Kolejność: u góry ćwiczenia robione ostatnio — według daty ostatniego zapisu (liczy się przy wejściu na zakładkę). Te bez zapisu od 6 tygodni są zwinięte w „Pozostałe” na dole — wystarczy jeden zapis, żeby wróciły na listę.</p>` +
     `<p>Ćwiczenia zmieniasz przez „Edytuj ćwiczenie” w „Historia i technika”, nowe dodajesz przyciskiem „+ Dodaj ćwiczenie”. Zmiany są w kopii zapasowej.</p>` +
     `<p><a class="xlink" href="jedzenie/">Dziennik jedzenia →</a></p>` +
     (rm.length ? `<p><b>Usunięte ćwiczenia</b> — historia zostaje, możesz je przywrócić:</p><div class="rmlist">` +
